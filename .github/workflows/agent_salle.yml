@@ -38,7 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: python salle/poster.py dire "Je prends la tâche. Suivi du run : $RUN_URL"
+      - run: |
+          python salle/poster.py dire "Je prends la tâche. Suivi du run : $RUN_URL"
 
       - uses: actions/setup-python@v5
         with:
