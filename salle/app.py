@@ -47,7 +47,9 @@ async def _erreur(request: Request, exc: Exception):
 def sql(requete: str, **params) -> list:
     global _engine
     if _engine is None:
-        _engine = create_engine(os.environ["SALLE_DATABASE_URL"], pool_pre_ping=True)
+        # postgres://, postgresql://, postgresql+psycopg://… : on force le seul pilote installé.
+        url = "postgresql+psycopg2://" + os.environ["SALLE_DATABASE_URL"].split("://", 1)[1]
+        _engine = create_engine(url, pool_pre_ping=True)
     with _engine.begin() as conn:
         res = conn.execute(text(requete), params)
         return res.mappings().all() if res.returns_rows else []
