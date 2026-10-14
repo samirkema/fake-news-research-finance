@@ -70,7 +70,11 @@ def _auteur(request: Request) -> str | None:
 
 @app.post("/login")
 def login(code: str = Form(...)):
-    if not _egal(code, os.environ["SALLE_CODE"]):
+    attendu = os.environ.get("SALLE_CODE")
+    if not attendu:
+        raise HTTPException(500, "SALLE_CODE n'est pas définie : Vercel → Settings → "
+                                 "Environment Variables, puis Deployments → Redeploy.")
+    if not _egal(code, attendu):
         time.sleep(1)  # ponytail: freine le bruteforce, code long obligatoire quand même
         return RedirectResponse("/?erreur=1", status_code=303)
     exp = str(int(time.time()) + DUREE_SESSION)
