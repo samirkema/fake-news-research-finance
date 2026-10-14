@@ -1,11 +1,10 @@
 name: Pipeline hebdomadaire
 
 "on":
-  # Projet en pause : déclenchement automatique désactivé pour ne pas relancer de
-  # scraping/notation (et donc de consommation de la clé Anthropic) sans action
-  # explicite. Réactiver en décommentant le bloc schedule ci-dessous.
-  # schedule:
-  #   - cron: "0 6 * * 1" # tous les lundis à 06:00 UTC
+  # Réactivé le 2026-10-14 (était en pause depuis août pour ne pas consommer la
+  # clé Anthropic sans action explicite). Recommenter le bloc pour remettre en pause.
+  schedule:
+    - cron: "0 6 * * 1" # tous les lundis à 06:00 UTC
   workflow_dispatch: {} # déclenchement manuel possible depuis GitHub
 
 jobs:
