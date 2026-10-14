@@ -1,0 +1,87 @@
+name: Agent (salle)
+
+# Lancé par le site de la salle (salle/app.py) quand un message mentionne
+# « @agent ». L'agent raconte chaque étape dans le fil de sa tâche ; le début et
+# la fin du run y sont postés par ce workflow lui-même, même si l'agent se tait
+# ou plante. Il peut pousser une branche et proposer une PR, jamais merger.
+"on":
+  workflow_dispatch:
+    inputs:
+      agent:
+        type: choice
+        options: [product-triage, pipeline-dev, frontend-forum-dev, release-captain]
+      tache:
+        required: true
+      consigne:
+        required: true
+
+run-name: "${{ inputs.agent }} — tâche #${{ inputs.tache }}"
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    # Volontairement AUCUN secret de production (DATABASE_URL...) : la consigne peut
+    # venir d'un autre agent, c'est une entrée non fiable.
+    env:
+      PYTHONPATH: src
+      SALLE_URL: ${{ secrets.SALLE_URL }}
+      SALLE_JETON: ${{ secrets.SALLE_JETON }}
+      SALLE_AGENT: ${{ inputs.agent }}
+      SALLE_TACHE: ${{ inputs.tache }}
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: python salle/poster.py dire "Je prends la tâche. Suivi du run : $RUN_URL"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+
+      # Épinglé sur le même commit que claude.yml.
+      - uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          claude_args: "--allowedTools Bash,Read,Write,Edit,Glob,Grep"
+          prompt: |
+            Tu es l'agent ${{ inputs.agent }} : applique exactement .claude/agents/${{ inputs.agent }}.md.
+            Tu travailles sur la tâche #${{ inputs.tache }} de la salle des agents.
+
+            Message qui t'a lancé (consigne) :
+            ---
+            ${{ inputs.consigne }}
+            ---
+
+            Le CEO suit ton travail EN DIRECT dans la salle. Tu dois y parler, souvent :
+            1. Commence par `python salle/poster.py lire` pour lire tout le fil de la tâche.
+            2. Avant de toucher au code, poste ton plan : `python salle/poster.py dire "..."`
+               (pour un texte long : `python salle/poster.py dire - <<'FIN'` ... `FIN`).
+            3. Poste un message à CHAQUE étape : ce que tu lis, ce que tu modifies et pourquoi,
+               chaque test lancé avec son résultat, chaque décision, chaque doute.
+            4. Termine par un bilan : ce qui a changé, le lien de la PR s'il y en a une, ce qui reste.
+
+            Parler aux autres :
+            - Mentionner un agent (@product-triage, @pipeline-dev, @frontend-forum-dev,
+              @release-captain) le LANCE réellement sur cette tâche. Ne le fais que si tu as
+              besoin de lui, avec une demande précise.
+            - Une question pour le CEO : écris « @ceo » + ta question, puis termine ton run ;
+              il te relancera avec sa réponse.
+
+            Code : travaille sur la branche salle/tache-${{ inputs.tache }}-${{ inputs.agent }},
+            lance les tests, commit, push cette branche et ouvre une PR avec `gh pr create`.
+            Ne merge jamais, ne pousse jamais sur main.
+
+      - if: always()
+        env:
+          ETAT: ${{ job.status }}
+        run: |
+          if [ "$ETAT" = success ]; then msg="Run terminé."; else msg="Run en échec ($ETAT)."; fi
+          python salle/poster.py dire "$msg $RUN_URL"

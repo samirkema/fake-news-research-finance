@@ -61,6 +61,15 @@ Forum (commentaires / propositions, V3)
   - lundi 08:00 UTC, `triage_hebdomadaire.yml` : `product-triage` lit les retours forum de la semaine et publie une issue « Backlog » (la boîte mail n'est pas lisible depuis GitHub : la trier ici, dans la conversation) ;
   - à tout moment, `claude.yml` : commenter `@claude ...` dans une issue ou une PR (par ex. « @claude fais l'item 3 ») lance Claude Code sur GitHub, qui pousse une branche et propose une PR. Le merge reste ta décision.
 
+## La salle des agents (remplace Slack)
+
+Site séparé (`salle/`, projet Vercel distinct) : tu écris « @pipeline-dev fais X », l'agent est lancé sur GitHub (`agent_salle.yml`) et raconte chaque étape dans le fil de la tâche — plan, fichiers touchés, tests, bilan, lien de PR. Un agent peut en mentionner un autre, ce qui le lance aussi (10 lancements max par tâche). Il pousse une branche et propose une PR, jamais de merge.
+
+Mise en service (une fois) :
+1. Supabase, éditeur SQL : appliquer `supabase/migrations/0008_salle.sql`, puis `alter role salle password '<long mot de passe>';`.
+2. Vercel : nouveau projet sur ce dépôt, *Root Directory* = `salle`. Variables : `SALLE_DATABASE_URL` (chaîne du pooler Supabase avec l'utilisateur `salle.<ref-projet>`), `SALLE_CODE` (ton code d'entrée, long), `SALLE_JETON` (aléatoire, pour les agents), `GITHUB_DISPATCH_TOKEN` (token fine-grained, ce seul dépôt, permission *Actions: Read and write*).
+3. GitHub, secrets Actions : `SALLE_URL` (l'URL du projet Vercel) et `SALLE_JETON` (même valeur).
+
 ## Ce qu'on ne met pas en place maintenant
 
 - Agents qui push/déploient sans validation — contraire au principe non négociable ci-dessus.
