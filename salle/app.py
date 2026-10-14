@@ -22,7 +22,7 @@ import time
 import urllib.request
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy import create_engine, text
 
 # Agents définis dans .claude/agents/ de ce dépôt : les seuls qui existent sur GitHub.
@@ -34,6 +34,14 @@ DUREE_SESSION = 30 * 24 * 3600
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 _engine = None
+
+
+@app.exception_handler(Exception)
+async def _erreur(request: Request, exc: Exception):
+    # Seules les routes authentifiées touchent la base : seul le CEO voit ce détail.
+    # La 1re ligne d'une erreur psycopg2 ne contient jamais le mot de passe.
+    detail = (str(exc).strip().splitlines() or [""])[0]
+    return PlainTextResponse(f"{type(exc).__name__}: {detail}", status_code=500)
 
 
 def sql(requete: str, **params) -> list:
