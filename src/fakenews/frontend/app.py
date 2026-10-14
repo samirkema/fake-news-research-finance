@@ -1224,8 +1224,12 @@ def promouvoir(
         return _avec_erreur("/admin/comptes", "deja_contributeur")
 
     code_provisoire = secrets.token_urlsafe(12)
+    # Hacher avant de toucher `cible` : la requête de hachage déclenche un
+    # autoflush, qui écrirait sinon le rôle sans code et violerait
+    # ck_comptes_role_privilegie_a_un_code (vu avec SQLAlchemy 2.1).
+    secret_hash = _hacher_code(session, code_provisoire)
     cible.role = "contributeur"
-    cible.secret_hash = _hacher_code(session, code_provisoire)
+    cible.secret_hash = secret_hash
     session.commit()
     _invalider_compte(cible.pseudo.lower())
     logger.info("%s a promu %s au rôle contributeur.", compte.pseudo, cible.pseudo)
