@@ -1,10 +1,12 @@
-name: Pipeline hebdomadaire
+name: Pipeline quotidien
 
+# NB : le nom de fichier (pipeline_hebdomadaire.yml) est conservé pour historique —
+# d'autres docs le référencent — mais la cadence est désormais QUOTIDIENNE.
 "on":
   # Réactivé le 2026-10-14 (était en pause depuis août pour ne pas consommer la
   # clé Anthropic sans action explicite). Recommenter le bloc pour remettre en pause.
   schedule:
-    - cron: "0 6 * * 1" # tous les lundis à 06:00 UTC
+    - cron: "0 6 * * *" # chaque jour à 06:00 UTC
   workflow_dispatch: {} # déclenchement manuel possible depuis GitHub
 
 jobs:
