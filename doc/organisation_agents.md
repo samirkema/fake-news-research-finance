@@ -26,7 +26,7 @@ Définis dans `.claude/agents/` (ce repo) — fichiers à relire et ajuster toi-
 
 | Agent | Mandat | Déclenché par |
 |---|---|---|
-| [`product-triage`](../.claude/agents/product-triage.md) | Lit les propositions/commentaires non traités du forum (crowdsourcing V3), les reformule en items de backlog actionnables, sans jamais coder ni décider à ta place | Toi, ou un cron périodique (à activer plus tard si volume le justifie) |
+| [`product-triage`](../.claude/agents/product-triage.md) | Lit les propositions/commentaires non traités du forum (crowdsourcing V3), les reformule en items de backlog actionnables, sans jamais coder ni décider à ta place | Toi, ou le cron quotidien `triage_hebdomadaire.yml` (08:00 UTC) |
 | [`pipeline-dev`](../.claude/agents/pipeline-dev.md) | Développe/corrige le bloc Scraper → Évaluateur → Contextualiseur | Toi, sur un item de backlog précis |
 | [`frontend-forum-dev`](../.claude/agents/frontend-forum-dev.md) | Développe/corrige le Frontend (FastAPI+Jinja2), les comptes/rôles, et le forum (commentaires + propositions) | Toi, sur un item de backlog précis |
 | [`release-captain`](../.claude/agents/release-captain.md) | Rassemble un diff prêt, le fait relire par `reviewer`/`architecture-critic`/`audit-agent`, rédige le résumé de PR, et s'arrête avant tout push | Toi, quand un item de backlog est "terminé" côté dev |
@@ -56,9 +56,9 @@ Forum (commentaires / propositions, V3)
 
 - **Ponctuel** : `Agent({ subagent_type: "pipeline-dev", prompt: "..." })` — tu le demandes dans la conversation, comme aujourd'hui.
 - **Pipeline multi-agents coordonné** (ex: triage puis dev puis revue en une fois) : outil `Workflow`, mais seulement si tu le demandes explicitement — ce n'est pas automatique.
-- **Récurrent, ordinateur éteint** (activé le 2026-10-14, via GitHub Actions) :
-  - lundi 06:00 UTC, `pipeline_hebdomadaire.yml` : collecte → notation → contextualisation ;
-  - lundi 08:00 UTC, `triage_hebdomadaire.yml` : `product-triage` lit les retours forum de la semaine et publie une issue « Backlog » (la boîte mail n'est pas lisible depuis GitHub : la trier ici, dans la conversation) ;
+- **Récurrent, ordinateur éteint** (activé le 2026-10-14, via GitHub Actions ; les noms de fichiers `*_hebdomadaire.yml` sont historiques, la cadence est désormais **quotidienne**) :
+  - chaque jour 06:00 UTC, `pipeline_hebdomadaire.yml` : collecte → notation → contextualisation ;
+  - chaque jour 08:00 UTC, `triage_hebdomadaire.yml` : `product-triage` lit les retours forum **et** les mails récents de la boîte de contact (pré-extraits en lecture seule dans `mails.json` par `python -m fakenews.product.extraire_mails`, nécessite le secret `GMAIL_APP_PASSWORD` ; sans lui la boîte n'est pas lue et le triage continue), puis publie une issue « Backlog » ;
   - à tout moment, `claude.yml` : commenter `@claude ...` dans une issue ou une PR (par ex. « @claude fais l'item 3 ») lance Claude Code sur GitHub, qui pousse une branche et propose une PR. Le merge reste ta décision.
 
 ## Ce qu'on ne met pas en place maintenant

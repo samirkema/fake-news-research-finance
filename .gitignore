@@ -15,3 +15,7 @@ __pycache__/
 # Graphe de connaissance régénéré par `graphify update .` — artefact, pas source
 # (audit phase 14, F25 : il n'était ni ignoré ni commité).
 graphify-out/
+
+# Mails extraits de la boîte de contact par le triage produit (GitHub Actions) —
+# artefact généré à chaque run, jamais versionné (cf. fakenews.product.extraire_mails).
+mails.json
