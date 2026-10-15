@@ -1,6 +1,7 @@
 import logging
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html import unescape
@@ -69,6 +70,27 @@ USER_AGENT = "Mozilla/5.0 (compatible; fakenews-scraper/0.1)"
 TAILLE_MAX_PAR_DEFAUT = 10_000_000
 
 
+class _RedirectionsHttp(urllib.request.HTTPRedirectHandler):
+    """Redirections revalidées à CHAQUE saut, et bornées.
+
+    Le schéma n'était contrôlé que sur l'URL initiale : `urllib` suit ensuite
+    jusqu'à 10 redirections vers http, https OU ftp. Une URL proposée par un
+    utilisateur pouvait donc mener le runner hors http(s), contre
+    doc/V3/plan_implementation_crowdsourcing.md (audit phase 24, F24-05).
+    Renvoyer None refuse la redirection : urllib lève alors `HTTPError`, que
+    `_telecharger` traite comme tout autre échec."""
+
+    max_redirections = 5
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlsplit(newurl).scheme.lower() not in ("http", "https"):
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OUVREUR = urllib.request.build_opener(_RedirectionsHttp)
+
+
 def _telecharger(url: str, taille_max: int = TAILLE_MAX_PAR_DEFAUT) -> bytes | None:
     """Récupère le contenu brut d'une URL avec un timeout explicite (cf. doc/architecture.md,
     "dégrader jamais bloquer" — un flux qui traîne ne doit pas geler tout le run). Un
@@ -79,7 +101,7 @@ def _telecharger(url: str, taille_max: int = TAILLE_MAX_PAR_DEFAUT) -> bytes | N
     serveur. Un `Content-Length` mensonger ou absent ne change donc rien."""
     requete = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(requete, timeout=TIMEOUT_SECONDES) as reponse:
+        with _OUVREUR.open(requete, timeout=TIMEOUT_SECONDES) as reponse:
             return reponse.read(taille_max)
     except Exception as exc:
         # `except Exception` volontaire : la liste fermée précédente

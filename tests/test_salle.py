@@ -7,6 +7,8 @@ from sqlalchemy import text
 
 from salle import app as salle
 
+CODE = "c" * salle.CODE_LONGUEUR_MIN
+
 
 @pytest.fixture
 def client(db_session, monkeypatch):
@@ -16,7 +18,7 @@ def client(db_session, monkeypatch):
 
     monkeypatch.setattr(salle, "sql", sql)
     monkeypatch.setattr(salle.time, "sleep", lambda _: None)
-    monkeypatch.setenv("SALLE_CODE", "code-ceo")
+    monkeypatch.setenv("SALLE_CODE", CODE)
     monkeypatch.setenv("SALLE_JETON", "jeton-agents")
     lances = []
     monkeypatch.setattr(salle, "lancer_agent", lambda a, t, c: lances.append((a, t)))
@@ -47,7 +49,7 @@ def test_cookie_forge_refuse(client):
 
 
 def test_on_ne_repond_que_dans_une_tache(client):
-    client.post("/login", data={"code": "code-ceo"})
+    client.post("/login", data={"code": CODE})
     tache = client.post("/api/messages", json={"texte": "ordre"}).json()["tache"]
     reponse = client.post("/api/messages", json={"texte": "suite", "tache": tache}).json()["id"]
     assert client.post("/api/messages", json={"texte": "x", "tache": reponse}).status_code == 404
@@ -59,7 +61,7 @@ def test_un_agent_ne_peut_pas_parler_au_nom_du_ceo(client):
 
 
 def test_ordre_du_ceo_puis_echange_entre_agents(client):
-    client.post("/login", data={"code": "code-ceo"})
+    client.post("/login", data={"code": CODE})
     r = client.post("/api/messages", json={"texte": "@pipeline-dev corrige le scraper"})
     tache = r.json()["tache"]
     assert r.json()["lances"] == ["pipeline-dev"] and client.lances == [("pipeline-dev", tache)]
@@ -75,9 +77,20 @@ def test_ordre_du_ceo_puis_echange_entre_agents(client):
 
 def test_plafond_de_lancements_par_tache(client, monkeypatch):
     monkeypatch.setattr(salle, "MAX_LANCEMENTS_PAR_TACHE", 2)
-    client.post("/login", data={"code": "code-ceo"})
+    client.post("/login", data={"code": CODE})
     tache = client.post("/api/messages", json={"texte": "@pipeline-dev go"}).json()["tache"]
     r = client.post("/api/messages", headers=AGENT,
                     json={"auteur": "pipeline-dev", "tache": tache, "texte": "@release-captain @product-triage"})
     assert r.json()["lances"] == ["release-captain"]
     assert any("plafond" in m["texte"] for m in client.get(f"/api/messages?tache={tache}").json())
+
+
+def test_un_code_trop_court_ferme_la_salle(client, monkeypatch):
+    """F24-06 — un code court se bruteforce malgré le sleep(1). Il ne doit ni
+    ouvrir de session, ni valider les cookies déjà émis."""
+    client.post("/login", data={"code": CODE})
+    assert client.get("/api/messages").status_code == 200
+    court = CODE[:-1]
+    monkeypatch.setenv("SALLE_CODE", court)
+    assert client.get("/api/messages").status_code == 500
+    assert client.post("/login", data={"code": court}).status_code == 500

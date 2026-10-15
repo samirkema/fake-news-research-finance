@@ -31,6 +31,10 @@ MAX_LANCEMENTS_PAR_TACHE = 10
 DEPOT = os.environ.get("GITHUB_REPO", "samirkema/fake-news-trading")
 COOKIE = "salle"
 DUREE_SESSION = 30 * 24 * 3600
+# Le code ouvre le lancement d'agents qui poussent dans le dépôt. Le sleep(1) de
+# /login ne borne pas le parallélisme (instances Vercel multiples) : seule la
+# longueur du code protège réellement (audit phase 24, F24-06).
+CODE_LONGUEUR_MIN = 32
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 _engine = None
@@ -62,8 +66,18 @@ def _egal(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
 
 
+def _code() -> str:
+    """SALLE_CODE, refusé s'il est absent ou trop court — à l'entrée ET pour les
+    cookies déjà émis : raccourcir le code ferme la porte, il ne l'entrouvre pas."""
+    code = os.environ.get("SALLE_CODE", "")
+    if len(code) < CODE_LONGUEUR_MIN:
+        raise HTTPException(500, f"SALLE_CODE absente ou trop courte ({CODE_LONGUEUR_MIN} caractères "
+                                 "minimum) : Vercel → Settings → Environment Variables, puis Redeploy.")
+    return code
+
+
 def _signature(expiration: str) -> str:
-    return hmac.new(os.environ["SALLE_CODE"].encode(), expiration.encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_code().encode(), expiration.encode(), hashlib.sha256).hexdigest()
 
 
 def _auteur(request: Request) -> str | None:
@@ -80,11 +94,7 @@ def _auteur(request: Request) -> str | None:
 
 @app.post("/login")
 def login(code: str = Form(...)):
-    attendu = os.environ.get("SALLE_CODE")
-    if not attendu:
-        raise HTTPException(500, "SALLE_CODE n'est pas définie : Vercel → Settings → "
-                                 "Environment Variables, puis Deployments → Redeploy.")
-    if not _egal(code, attendu):
+    if not _egal(code, _code()):
         time.sleep(1)  # ponytail: freine le bruteforce, code long obligatoire quand même
         return RedirectResponse("/?erreur=1", status_code=303)
     exp = str(int(time.time()) + DUREE_SESSION)

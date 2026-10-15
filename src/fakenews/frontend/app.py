@@ -1,7 +1,12 @@
-"""Frontend de consultation en lecture seule (cf. doc/userstories_frontend.md,
-doc/architecture.md — FastAPI + Jinja2, déployé sur Vercel, le local ne sert qu'au
-dev/test). Ce module ne fait strictement que lire le stockage partagé — aucune route
-d'écriture."""
+"""Frontend du projet (cf. doc/V0/userstories_frontend.md, doc/V3/ — FastAPI +
+Jinja2, déployé sur Vercel, le local ne sert qu'au dev/test).
+
+Consultation des articles, scores et mises en contexte, PLUS les écritures du
+crowdsourcing V3 : connexion/déconnexion, proposer un article, accepter/refuser
+une proposition, changer son code, promouvoir/rétrograder un compte, publier et
+retirer un commentaire. Chaque route d'écriture exige un rôle suffisant et un
+jeton CSRF (`exige_role`, `exige_csrf`). Aucune écriture dans les tables du
+pipeline (`articles`, `scores`, `mise_en_contexte`)."""
 
 import hashlib
 import hmac

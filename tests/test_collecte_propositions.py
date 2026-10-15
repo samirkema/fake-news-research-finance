@@ -352,9 +352,9 @@ def test_audit_phase19_le_telechargement_s_arrete_a_la_borne(monkeypatch):
     remplace `_telecharger`, donc le `read(taille_max)` ajouté à `rss.py` n'était
     jamais appelé. On vérifie ici la vraie fonction, avec une réponse factice qui
     prétend livrer bien plus que demandé."""
-    import urllib.request
     from contextlib import contextmanager
 
+    from fakenews.scraper import rss
     from fakenews.scraper.rss import _telecharger
 
     class ReponseGeante:
@@ -366,6 +366,52 @@ def test_audit_phase19_le_telechargement_s_arrete_a_la_borne(monkeypatch):
     def _fausse_ouverture(requete, timeout=None):
         yield ReponseGeante()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fausse_ouverture)
+    monkeypatch.setattr(rss._OUVREUR, "open", _fausse_ouverture)
 
     assert len(_telecharger("https://exemple.test/enorme", taille_max=1000)) == 1000
+
+
+def test_audit_phase24_une_redirection_hors_http_est_refusee():
+    """F24-05 — le schéma n'était revalidé que sur l'URL initiale ; urllib suivait
+    ensuite une redirection vers ftp://. Vrai serveur local : une redirection
+    http reste suivie, une redirection ftp fait échouer le téléchargement."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    from fakenews.scraper.rss import _telecharger
+
+    class Serveur(BaseHTTPRequestHandler):
+        def do_GET(self):
+            cibles = {"/vers-ftp": "ftp://exemple.test/f", "/vers-http": "/page"}
+            if self.path in cibles:
+                self.send_response(302)
+                self.send_header("Location", cibles[self.path])
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"contenu")
+
+        def log_message(self, *args):
+            pass
+
+    serveur = HTTPServer(("127.0.0.1", 0), Serveur)
+    threading.Thread(target=serveur.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{serveur.server_port}"
+    try:
+        assert _telecharger(base + "/vers-http") == b"contenu"
+        assert _telecharger(base + "/vers-ftp") is None
+    finally:
+        serveur.shutdown()
+
+    # Le `None` ci-dessus ne prouve pas à lui seul le refus : suivie, la
+    # redirection ftp échouerait aussi (aucun serveur ftp). On interroge donc le
+    # gestionnaire lui-même.
+    import urllib.request
+
+    from fakenews.scraper.rss import _RedirectionsHttp
+
+    requete = urllib.request.Request(base + "/vers-ftp")
+    gestionnaire = _RedirectionsHttp()
+    assert gestionnaire.redirect_request(requete, None, 302, "Found", {}, "ftp://exemple.test/f") is None
+    assert gestionnaire.redirect_request(requete, None, 302, "Found", {}, base + "/page") is not None

@@ -8,6 +8,8 @@ Ce document décrit qui fait quoi, comment un agent est déclenché, et où se t
 
 **Aucun agent ne push, ne merge, n'ouvre de PR ou n'écrit en base de production seul.** Un agent prépare (diff, branche locale, résumé) et s'arrête ; le passage à l'action irréversible attend ta validation explicite dans la conversation. C'est le rôle du CEO qui relit avant de signer — pas une limitation technique qu'on contournera plus tard.
 
+**Une seule exception, la salle des agents** (cf. plus bas) : lancés par `agent_salle.yml`, `pipeline-dev` et `frontend-forum-dev` poussent leur branche `salle/tache-<n>-<agent>` et ouvrent une PR. Ton message dans la salle vaut feu vert pour cela, et pour rien de plus : jamais `main`, jamais de merge, jamais la base. `product-triage` et `release-captain` ne poussent rien, même dans la salle. Les fichiers d'agents portent la même règle.
+
 ## Rôles déjà en place (agents globaux, valables sur tous tes projets)
 
 Définis dans `~/.claude/agents/`, donc pas dupliqués ici :
@@ -63,11 +65,11 @@ Forum (commentaires / propositions, V3)
 
 ## La salle des agents (remplace Slack)
 
-Site séparé (`salle/`, projet Vercel distinct) : tu écris « @pipeline-dev fais X », l'agent est lancé sur GitHub (`agent_salle.yml`) et raconte chaque étape dans le fil de la tâche — plan, fichiers touchés, tests, bilan, lien de PR. Un agent peut en mentionner un autre, ce qui le lance aussi (10 lancements max par tâche). Il pousse une branche et propose une PR, jamais de merge.
+Site séparé (`salle/`, projet Vercel distinct) : tu écris « @pipeline-dev fais X », l'agent est lancé sur GitHub (`agent_salle.yml`) et raconte chaque étape dans le fil de la tâche — plan, fichiers touchés, tests, bilan, lien de PR. Un agent peut en mentionner un autre, ce qui le lance aussi (10 lancements max par tâche). Un agent de dev (`pipeline-dev`, `frontend-forum-dev`) pousse sa branche et propose une PR, jamais de merge — cf. l'exception du principe non négociable.
 
 Mise en service (une fois) :
 1. Supabase, éditeur SQL : appliquer `supabase/migrations/0008_salle.sql`, puis `alter role salle password '<long mot de passe>';`.
-2. Vercel : nouveau projet sur ce dépôt, *Root Directory* = `salle`. Variables : `SALLE_DATABASE_URL` (chaîne du pooler Supabase avec l'utilisateur `salle.<ref-projet>`), `SALLE_CODE` (ton code d'entrée, long), `SALLE_JETON` (aléatoire, pour les agents), `GITHUB_DISPATCH_TOKEN` (token fine-grained, ce seul dépôt, permission *Actions: Read and write*).
+2. Vercel : nouveau projet sur ce dépôt, *Root Directory* = `salle`. Variables : `SALLE_DATABASE_URL` (chaîne du pooler Supabase avec l'utilisateur `salle.<ref-projet>`), `SALLE_CODE` (ton code d'entrée, **32 caractères minimum** — plus court, la salle refuse toute connexion, cf. `salle/app.py`), `SALLE_JETON` (aléatoire, pour les agents), `GITHUB_DISPATCH_TOKEN` (token fine-grained, ce seul dépôt, permission *Actions: Read and write*).
 3. GitHub, secrets Actions : `SALLE_URL` (l'URL du projet Vercel) et `SALLE_JETON` (même valeur).
 
 ## Ce qu'on ne met pas en place maintenant

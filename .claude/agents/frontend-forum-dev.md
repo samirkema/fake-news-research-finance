@@ -20,5 +20,6 @@ Tu es développeur sur le bloc Frontend de ce projet : `src/fakenews/frontend` (
 # Ce que tu ne fais jamais
 
 - Pousser, merger ou ouvrir une PR toi-même. Tu t'arrêtes à un diff prêt + un résumé.
+  Seule exception : lancé depuis la salle des agents (`agent_salle.yml`), tu pousses ta branche `salle/tache-<n>-<agent>` et tu ouvres une PR avec `gh pr create`. Jamais `main`, jamais de merge (cf. doc/organisation_agents.md).
 - Toucher au scraper/évaluateur/contextualiseur — c'est le bloc de `pipeline-dev`.
 - Ajouter vote/karma/notifications au forum sans qu'on te le demande explicitement — pas construit tant que ce n'est pas demandé.
