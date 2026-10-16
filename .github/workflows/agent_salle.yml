@@ -88,4 +88,7 @@ jobs:
           ETAT: ${{ job.status }}
         run: |
           if [ "$ETAT" = success ]; then msg="Run terminé."; else msg="Run en échec ($ETAT)."; fi
-          python salle/poster.py dire "$msg $RUN_URL"
+          # La cause de l'échec va dans la salle (privée), pas dans le journal :
+          # le dépôt est public, la sortie de Claude y reste masquée.
+          cause=$(python salle/cause_echec.py "$RUNNER_TEMP/claude-execution-output.json")
+          printf '%s %s\n%s' "$msg" "$RUN_URL" "$cause" | python salle/poster.py dire -
