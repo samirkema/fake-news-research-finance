@@ -61,12 +61,13 @@ jobs:
             ${{ inputs.consigne }}
             ---
 
-            Le CEO suit ton travail EN DIRECT dans la salle. Tu dois y parler, souvent :
+            Le CEO suit l'avancement dans la salle. Tiens-le informé par de courts
+            comptes rendus :
             1. Commence par `python salle/poster.py lire` pour lire tout le fil de la tâche.
             2. Avant de toucher au code, poste ton plan : `python salle/poster.py dire "..."`
                (pour un texte long : `python salle/poster.py dire - <<'FIN'` ... `FIN`).
-            3. Poste un message à CHAQUE étape : ce que tu lis, ce que tu modifies et pourquoi,
-               chaque test lancé avec son résultat, chaque décision, chaque doute.
+            3. Après chaque étape importante, poste ce qui a été fait et son résultat :
+               fichiers modifiés, tests lancés et leur issue, point bloquant éventuel.
             4. Termine par un bilan : ce qui a changé, le lien de la PR s'il y en a une, ce qui reste.
 
             Parler aux autres :
