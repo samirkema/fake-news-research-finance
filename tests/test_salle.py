@@ -94,3 +94,14 @@ def test_un_code_trop_court_ferme_la_salle(client, monkeypatch):
     monkeypatch.setenv("SALLE_CODE", court)
     assert client.get("/api/messages").status_code == 500
     assert client.post("/login", data={"code": court}).status_code == 500
+
+
+def test_cause_echec_lit_le_dernier_resultat_en_erreur():
+    from salle.cause_echec import cause
+
+    ok = {"type": "result", "is_error": False, "result": "fini"}
+    ko = {"type": "result", "is_error": True, "result": "API Error: 429 rate limit"}
+    assert cause([{"type": "system"}, ko]) == "Cause : API Error: 429 rate limit"
+    assert cause([ko, ok]) == ""
+    assert cause([]) == ""
+    assert cause([{"type": "result", "is_error": True}]) == "Cause : non précisée par Claude"
