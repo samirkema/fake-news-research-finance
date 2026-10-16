@@ -92,7 +92,11 @@ psql "$DATABASE_URL" -f supabase/migrations/0004_comptes_role_privilegie.sql
 psql "$DATABASE_URL" -f supabase/migrations/0005_propositions.sql
 psql "$DATABASE_URL" -f supabase/migrations/0006_index_date_collecte.sql
 psql "$DATABASE_URL" -f supabase/migrations/0007_commentaires.sql
+psql "$DATABASE_URL" -f supabase/migrations/0008_salle.sql
+psql "$DATABASE_URL" -f supabase/migrations/0009_usage_llm.sql
 ```
+
+La `0009` crée le compteur du plafond de dépense Claude (2 €/mois par défaut, réglable via `LLM_BUDGET_MENSUEL_EUR`). Le garde est fail-closed : **sans cette migration, aucun appel Claude ne part** (évaluateur LLM et contextualiseur dégradés).
 
 Depuis la `0004`, **aucun rôle privilégié ne peut exister sans code personnel** :
 un `contributeur` décide quels articles entrent dans la base, ce pouvoir ne doit
