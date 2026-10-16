@@ -11,6 +11,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from fakenews.budget_llm import activer_budget
 from fakenews.config import entier_depuis_env
 from fakenews.db import SessionLocal
 from fakenews.evaluateur.llm_bootstrap import evaluer_llm_bootstrap
@@ -121,6 +122,7 @@ def backfiller_llm_bootstrap(session: Session, client=None, plafond: int | None 
 
 
 def main():
+    activer_budget()
     with SessionLocal() as session:
         backfiller_llm_bootstrap(session)
 

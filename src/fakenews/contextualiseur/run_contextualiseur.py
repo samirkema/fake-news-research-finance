@@ -8,6 +8,7 @@ import logging
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from fakenews.budget_llm import activer_budget
 from fakenews.config import PLAFOND_APPELS_PAR_DEFAUT, entier_depuis_env, seuil_suspicion
 from fakenews.contextualiseur.avertissement import AVERTISSEMENT
 from fakenews.contextualiseur.generation import generer_mise_en_contexte
@@ -120,6 +121,7 @@ def traiter_selection(session: Session, selection: list[dict], client=None) -> i
 
 
 def main():
+    activer_budget()
     with SessionLocal() as session:
         selection = selectionner_articles_a_traiter(session)
         if not selection:

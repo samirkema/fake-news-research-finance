@@ -14,6 +14,11 @@ import anthropic
 MODELE_PAR_DEFAUT = os.environ.get("LLM_MODELE", "claude-haiku-4-5-20251001")
 
 
+# Coupe-circuit budgétaire (cf. fakenews.budget_llm). None par défaut : les tests et
+# les usages sans base n'en ont pas ; les points d'entrée du pipeline l'activent.
+garde_budget = None
+
+
 def creer_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -60,6 +65,8 @@ def appeler_structure(
 ) -> dict:
     """Force une réponse structurée via un tool call plutôt que de parser du texte
     libre — évite les erreurs de parsing sur une réponse mal formée."""
+    if garde_budget is not None:
+        garde_budget.verifier()
     reponse = client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -74,6 +81,9 @@ def appeler_structure(
         ],
         tool_choice={"type": "tool", "name": "repondre"},
     )
+    usage = getattr(reponse, "usage", None)
+    if garde_budget is not None and usage is not None:
+        garde_budget.enregistrer(model, usage.input_tokens, usage.output_tokens)
     for bloc in reponse.content:
         if bloc.type == "tool_use":
             return bloc.input
