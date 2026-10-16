@@ -23,7 +23,7 @@ Scraper  -->  Évaluateur  -->  Contextualiseur  -->  Frontend
 | **Scraper** | Collecte RSS + Reddit, déduplication, normalisation |
 | **Évaluateur** | Calcule des signaux de fiabilité et un score composite 0-100 |
 | **Contextualiseur** | Génère une explication pour les articles jugés suspects |
-| **Frontend** | Consultation en lecture seule (FastAPI + Jinja2) |
+| **Frontend** | Consultation (FastAPI + Jinja2) + écritures du crowdsourcing V3 : propositions, file de décision, comptes, commentaires |
 
 Détails complets : [doc/V0/architecture.md](doc/V0/architecture.md) et [doc/V0/plan_implementation.md](doc/V0/plan_implementation.md) (section "État d'avancement" tenue à jour à chaque étape livrée).
 
@@ -132,7 +132,7 @@ FAKENEWS_MODE=local uvicorn fakenews.frontend.app:app --reload   # http://localh
 
 - **Stockage** : Supabase (PostgreSQL managé).
 - **Pipeline quotidien** : GitHub Actions (`.github/workflows/pipeline_hebdomadaire.yml`, nom de fichier historique). Le `schedule` tourne **chaque jour à 06:00 UTC** ; le déclenchement manuel reste possible. Le triage produit (`triage_hebdomadaire.yml`) tourne **chaque jour à 08:00 UTC** et lit aussi la boîte de contact via `mails.json` — ajouter alors le secret `GMAIL_APP_PASSWORD` (mot de passe d'application Gmail, IMAP activé ; `GMAIL_ADDRESS` optionnel). Secrets à configurer dans *Settings → Secrets and variables → Actions* du dépôt.
-- **Frontend** : Vercel (`vercel.json` + `api/index.py`), lecture seule. Variables à définir dans *Settings → Environment Variables* du projet Vercel : `DATABASE_URL`, `FRONTEND_PASSWORD`, et `FAKENEWS_PROXYS_DE_CONFIANCE=1` (cf. [Installation](#installation)). Ne **jamais** y définir `FAKENEWS_MODE`.
+- **Frontend** : Vercel (`vercel.json` + `api/index.py`) ; lit le pipeline, n'écrit que dans `comptes`, `propositions` et `commentaires`. Variables à définir dans *Settings → Environment Variables* du projet Vercel : `DATABASE_URL`, `FRONTEND_PASSWORD`, et `FAKENEWS_PROXYS_DE_CONFIANCE=1` (cf. [Installation](#installation)). Ne **jamais** y définir `FAKENEWS_MODE`.
 
 ### Ordre de déploiement : les migrations d'abord
 

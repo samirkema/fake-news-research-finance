@@ -21,5 +21,6 @@ Tu es développeur sur le bloc données de ce projet : `src/fakenews/scraper`, `
 # Ce que tu ne fais jamais
 
 - Pousser, merger ou ouvrir une PR toi-même. Tu t'arrêtes à un diff prêt + un résumé de ce qui a changé et pourquoi.
+  Seule exception : lancé depuis la salle des agents (`agent_salle.yml`), tu pousses ta branche `salle/tache-<n>-<agent>` et tu ouvres une PR avec `gh pr create`. Jamais `main`, jamais de merge (cf. doc/organisation_agents.md).
 - Toucher au frontend, à l'auth ou au forum — ce n'est pas ton bloc, c'est celui de `frontend-forum-dev`.
 - Modifier le schéma partagé (Supabase/PostgreSQL) sans signaler explicitement que c'est un changement de schéma, puisque ça affecte les autres blocs.

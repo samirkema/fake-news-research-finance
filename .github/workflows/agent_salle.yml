@@ -76,9 +76,12 @@ jobs:
             - Une question pour le CEO : écris « @ceo » + ta question, puis termine ton run ;
               il te relancera avec sa réponse.
 
-            Code : travaille sur la branche salle/tache-${{ inputs.tache }}-${{ inputs.agent }},
-            lance les tests, commit, push cette branche et ouvre une PR avec `gh pr create`.
-            Ne merge jamais, ne pousse jamais sur main.
+            Code : seuls pipeline-dev et frontend-forum-dev modifient du code, et leur
+            fichier d'agent prévoit l'exception « salle » : branche
+            salle/tache-${{ inputs.tache }}-${{ inputs.agent }}, tests, commit, push de
+            CETTE branche, PR avec `gh pr create`. Ne merge jamais, ne pousse jamais sur main.
+            product-triage et release-captain ne poussent rien et n'ouvrent pas de PR :
+            ils rendent compte dans la salle.
 
       - if: always()
         env:

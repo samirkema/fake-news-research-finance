@@ -31,14 +31,29 @@ logger = logging.getLogger(__name__)
 # si GMAIL_ADDRESS n'est pas renseignée.
 ADRESSE_PAR_DEFAUT = "fakenewstrackingbase@gmail.com"
 
-# On ne remonte qu'une fenêtre glissante récente et un plafond de mails : le triage
-# traite les retours de la période courante, pas tout l'historique de la boîte.
-FENETRE_JOURS = 30
+# Le triage tourne CHAQUE JOUR : la fenêtre couvre un jour, plus une heure de marge
+# pour un run retardé. Plus large, chaque mail revenait dans plusieurs issues
+# « Backlog » successives — trente avec l'ancienne fenêtre de 30 jours (audit
+# phase 24, F24-03). Même fenêtre que les retours du forum (triage_hebdomadaire.yml).
+FENETRE = timedelta(hours=25)
 MAX_MAILS = 200
 
 # Longueur maximale du corps conservé par mail : au-delà, c'est du bruit pour le
 # triage et ça gonfle inutilement le JSON transmis à Claude.
 CORPS_MAX = 4000
+
+
+def _decoder_octets(octets: bytes, charset: str | None) -> str:
+    """Décode avec le charset déclaré, ou utf-8 s'il est absent ou INCONNU.
+
+    Un charset inventé (`charset=x-inconnu`) levait `LookupError`, que rien ne
+    rattrapait avant `main` : un seul mail malformé vidait la boîte entière
+    (audit phase 24, F24-04). Le charset est écrit par l'expéditeur, donc par
+    n'importe qui."""
+    try:
+        return octets.decode(charset or "utf-8", errors="replace")
+    except LookupError:
+        return octets.decode("utf-8", errors="replace")
 
 
 def _decoder_entete(valeur: str) -> str:
@@ -51,7 +66,7 @@ def _decoder_entete(valeur: str) -> str:
     fragments = []
     for partie, charset in email.header.decode_header(valeur):
         if isinstance(partie, bytes):
-            fragments.append(partie.decode(charset or "utf-8", errors="replace"))
+            fragments.append(_decoder_octets(partie, charset))
         else:
             fragments.append(partie)
     return "".join(fragments).strip()
@@ -84,8 +99,7 @@ def _decoder_partie(partie) -> str:
     charge = partie.get_payload(decode=True)
     if charge is None:
         return ""
-    charset = partie.get_content_charset() or "utf-8"
-    return charge.decode(charset, errors="replace")
+    return _decoder_octets(charge, partie.get_content_charset())
 
 
 def _extraire_corps(msg) -> str:
@@ -142,6 +156,15 @@ def message_vers_dict(msg) -> dict:
     }
 
 
+def _avant(date_iso: str, depuis: datetime) -> bool:
+    """Vrai si la date du mail est connue et antérieure à `depuis`. Une date
+    absente ou sans fuseau est GARDÉE : mieux vaut un doublon qu'un mail perdu."""
+    if not date_iso:
+        return False
+    date = datetime.fromisoformat(date_iso)
+    return date.tzinfo is not None and date < depuis
+
+
 def _ecrire(chemin: str, mails: list) -> None:
     """Écrit la liste de mails en JSON UTF-8 lisible (accents conservés)."""
     with open(chemin, "w", encoding="utf-8") as f:
@@ -159,8 +182,9 @@ def _recuperer_mails(adresse: str, mot_de_passe: str) -> list:
         # Lecture seule : on ne touche jamais aux drapeaux ni au contenu de la boîte.
         client.select("INBOX", readonly=True)
 
-        depuis = datetime.now(timezone.utc) - timedelta(days=FENETRE_JOURS)
-        # Format attendu par IMAP SEARCH : 01-Jan-2026.
+        depuis = datetime.now(timezone.utc) - FENETRE
+        # IMAP SEARCH SINCE ne connaît que la DATE (01-Jan-2026) : il ramène jusqu'à
+        # un jour de trop, filtré à l'heure près plus bas.
         critere_date = depuis.strftime("%d-%b-%Y")
         statut, donnees = client.search(None, "SINCE", critere_date)
         if statut != "OK" or not donnees or not donnees[0]:
@@ -179,8 +203,14 @@ def _recuperer_mails(adresse: str, mot_de_passe: str) -> list:
             brut = charge[0][1]
             if not isinstance(brut, (bytes, bytearray)):
                 continue
-            msg = email.message_from_bytes(brut)
-            mails.append(message_vers_dict(msg))
+            try:
+                mail = message_vers_dict(email.message_from_bytes(brut))
+            except Exception as exc:  # noqa: BLE001 — un mail illisible ne masque pas les autres.
+                logger.warning("Mail %s ignoré (%s: %s).", identifiant.decode(), type(exc).__name__, exc)
+                continue
+            if _avant(mail["date"], depuis):
+                continue
+            mails.append(mail)
         return mails
     finally:
         try:
@@ -190,9 +220,10 @@ def _recuperer_mails(adresse: str, mot_de_passe: str) -> list:
 
 
 def main() -> None:
-    """Point d'entrée du step GitHub Actions. Ne lève jamais : en cas de secret
-    absent ou d'erreur IMAP/connexion, journalise, écrit `[]` et sort en 0, pour
-    que le workflow de triage continue à tourner."""
+    """Point d'entrée du step GitHub Actions. Ne lève jamais, sort toujours en 0
+    pour que le triage continue : secret absent ⇒ `[]` (boîte volontairement non
+    branchée) ; erreur IMAP/connexion ⇒ `[{"erreur_extraction": ...}]`, que le
+    triage doit signaler plutôt que de conclure à une boîte vide."""
     chemin = sys.argv[1] if len(sys.argv) > 1 else "mails.json"
     adresse = os.environ.get("GMAIL_ADDRESS") or ADRESSE_PAR_DEFAUT
     mot_de_passe = os.environ.get("GMAIL_APP_PASSWORD", "")
@@ -213,8 +244,11 @@ def main() -> None:
         logger.info("%d mail(s) extrait(s) de la boîte de contact vers %s.", len(mails), chemin)
     except Exception as exc:  # noqa: BLE001 — jamais faire échouer le workflow sur l'IMAP.
         # On ne journalise que le type/texte de l'erreur, jamais le mot de passe.
-        logger.warning("Extraction des mails impossible (%s) : écriture d'un JSON vide.", exc)
-        _ecrire(chemin, [])
+        # Le workflow continue, mais l'échec reste VISIBLE : un `[]` nu se lisait
+        # « aucun retour » dans le backlog, alors que la boîte n'avait pas été lue
+        # (audit phase 24, F24-04). Le prompt du triage reporte ce marqueur.
+        logger.warning("Extraction des mails impossible (%s) : marqueur d'échec écrit.", exc)
+        _ecrire(chemin, [{"erreur_extraction": f"{type(exc).__name__}: {exc}"}])
 
 
 if __name__ == "__main__":

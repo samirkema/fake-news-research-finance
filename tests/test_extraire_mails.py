@@ -66,3 +66,93 @@ def test_sujet_mime_encode_decode():
     assert resultat["sujet"] == "Problème de détection"
     assert resultat["expediteur"] == "André <andre@example.com>"
     assert resultat["corps"] == "Un bug a ete detecte."
+
+
+# --- Audit phase 24 : F24-03 (fenêtre) et F24-04 (un mail ne masque pas la boîte) ---
+
+import email.utils
+import json
+from datetime import datetime, timedelta, timezone
+
+from fakenews.product import extraire_mails
+
+
+def _brut(sujet: str, charset: str = "utf-8", il_y_a: timedelta = timedelta(hours=1)) -> bytes:
+    date = email.utils.format_datetime(datetime.now(timezone.utc) - il_y_a)
+    return (
+        f"Subject: {sujet}\r\nFrom: v@example.com\r\nDate: {date}\r\n"
+        f"Content-Type: text/plain; charset={charset}\r\n\r\ncorps {sujet}\r\n"
+    ).encode()
+
+
+class _ImapFactice:
+    """Double d'`imaplib.IMAP4_SSL` : SEARCH renvoie tous les messages, FETCH les
+    sert dans l'ordre. `readonly` est mémorisé pour vérifier la lecture seule."""
+
+    def __init__(self, messages):
+        self.messages = messages
+        self.readonly = None
+
+    def __call__(self, hote):
+        return self
+
+    def login(self, adresse, mot_de_passe):
+        pass
+
+    def select(self, boite, readonly=False):
+        self.readonly = readonly
+
+    def search(self, charset, *critere):
+        return "OK", [b" ".join(str(i + 1).encode() for i in range(len(self.messages)))]
+
+    def fetch(self, identifiant, quoi):
+        return "OK", [(b"", self.messages[int(identifiant) - 1])]
+
+    def logout(self):
+        pass
+
+
+def test_charset_inconnu_decode_en_utf8():
+    msg = message_from_string(_brut("x", charset="x-inconnu").decode())
+    assert message_vers_dict(msg)["corps"] == "corps x"
+
+
+def test_un_mail_illisible_ne_vide_pas_la_boite(monkeypatch):
+    imap = _ImapFactice([_brut("bon"), _brut("piege", charset="x-inconnu"), _brut("explose")])
+    monkeypatch.setattr(extraire_mails.imaplib, "IMAP4_SSL", imap)
+
+    def _decodage(msg):
+        if msg["Subject"] == "explose":
+            raise ValueError("mail illisible")
+        return message_vers_dict(msg)
+
+    monkeypatch.setattr(extraire_mails, "message_vers_dict", _decodage)
+    sujets = [m["sujet"] for m in extraire_mails._recuperer_mails("a", "b")]
+    assert sujets == ["piege", "bon"]
+    assert imap.readonly is True
+
+
+def test_fenetre_d_un_jour(monkeypatch):
+    imap = _ImapFactice([_brut("vieux", il_y_a=timedelta(hours=30)), _brut("recent")])
+    monkeypatch.setattr(extraire_mails.imaplib, "IMAP4_SSL", imap)
+    assert [m["sujet"] for m in extraire_mails._recuperer_mails("a", "b")] == ["recent"]
+
+
+def test_echec_imap_ecrit_un_marqueur_pas_une_boite_vide(monkeypatch, tmp_path):
+    def _refus(hote):
+        raise OSError("connexion refusée")
+
+    monkeypatch.setattr(extraire_mails.imaplib, "IMAP4_SSL", _refus)
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "x")
+    chemin = tmp_path / "mails.json"
+    monkeypatch.setattr(extraire_mails.sys, "argv", ["prog", str(chemin)])
+    extraire_mails.main()
+    assert json.loads(chemin.read_text()) == [{"erreur_extraction": "OSError: connexion refusée"}]
+
+
+def test_secret_absent_ecrit_une_boite_vide(monkeypatch, tmp_path):
+    monkeypatch.delenv("GMAIL_APP_PASSWORD", raising=False)
+    chemin = tmp_path / "mails.json"
+    monkeypatch.setattr(extraire_mails.sys, "argv", ["prog", str(chemin)])
+    extraire_mails.main()
+    assert json.loads(chemin.read_text()) == []
