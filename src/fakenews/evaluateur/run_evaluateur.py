@@ -14,6 +14,7 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from fakenews.budget_llm import activer_budget
 from fakenews.config import entier_depuis_env
 from fakenews.db import SessionLocal
 from fakenews.evaluateur.fact_checking import evaluer_fact_checking
@@ -193,6 +194,7 @@ def evaluer_articles_non_scores(
 
 
 def main():
+    activer_budget()
     plafond = entier_depuis_env("LLM_PLAFOND_EVALUATEUR", PLAFOND_APPELS_LLM_PAR_DEFAUT)
     plafond_articles = entier_depuis_env(
         "EVALUATEUR_PLAFOND_ARTICLES", PLAFOND_ARTICLES_PAR_DEFAUT
