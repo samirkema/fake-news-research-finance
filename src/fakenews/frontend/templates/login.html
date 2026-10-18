@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Connexion — Fake News Détection</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 360px; margin: 4rem auto; padding: 0 1rem; color: #1a1a1a; }
-    h1 { font-size: 1.2rem; }
+    :root { --papier:#fbf8f3; --encre:#1b1b1b; --gris:#5c5c5c; --filet:#d9d4ca; --accent:#b0121b; --accent-fonce:#7e0d14; --erreur:#9b1c1c; }
+    body { font-family: system-ui, sans-serif; max-width: 360px; margin: 4rem auto; padding: 0 1rem; color: var(--encre); background: var(--papier); }
+    h1 { font-family: Georgia, "Times New Roman", serif; font-size: 1.6rem; border-top: 4px solid var(--encre); border-bottom: 1px solid var(--encre); padding: 0.6rem 0; text-align: center; }
+    a { color: var(--accent); }
     form { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
-    input[type="text"], input[type="password"] { padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 6px; }
-    button { padding: 0.6rem; font-size: 1rem; border: none; border-radius: 6px; background: #1a56db; color: white; cursor: pointer; }
-    button:hover { background: #143f9e; }
-    .erreur { color: #b91c1c; font-size: 0.9rem; }
+    input[type="text"], input[type="password"] { padding: 0.5rem; font-size: 1rem; border: 1px solid var(--filet); border-radius: 2px; background: #fff; }
+    button { padding: 0.6rem; font-size: 1rem; border: none; border-radius: 2px; background: var(--accent); color: white; cursor: pointer; }
+    button:hover { background: var(--accent-fonce); }
+    :focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+    .erreur { color: var(--erreur); font-size: 0.9rem; }
+    .aide { margin-top: 2rem; font-size: 0.85rem; color: var(--gris); }
   </style>
 </head>
 <body>
@@ -29,7 +33,7 @@
            {% if erreur %}aria-describedby="erreur-login"{% endif %}>
     <button type="submit">Se connecter</button>
   </form>
-  <p style="margin-top: 2rem; font-size: 0.85rem; color: #52525b;">
+  <p class="aide">
     Des idées pour améliorer le site, un bug à signaler ? Écrivez-nous à
     <a href="mailto:fakenewstrackingbase@gmail.com">fakenewstrackingbase@gmail.com</a>.
   </p>
