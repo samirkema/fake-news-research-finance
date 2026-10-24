@@ -25,10 +25,10 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import quote, urlencode, urlsplit
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select, update
+from sqlalchemy import Text, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,7 @@ from fakenews.config import (
 from fakenews.contextualiseur.avertissement import AVERTISSEMENT
 from fakenews.db import SessionLocal
 from fakenews.models import (
+    GENRES_MESSAGE_SUJET,
     STATUTS_VIVANTS,
     Article,
     Commentaire,
@@ -50,6 +51,10 @@ from fakenews.models import (
     MiseEnContexte,
     Proposition,
     Score,
+    Sujet,
+    RattachementSujet,
+    SujetImage,
+    SujetMessage,
 )
 from fakenews.normalisation import canonicaliser_url
 
@@ -930,11 +935,31 @@ def detail_article(
         session.execute(commentaires.order_by(Commentaire.date_creation)).scalars().all()
     )
 
+    sujets_disponibles = []
+    if ROLES_ORDRE.get(compte.role, 0) >= ROLES_ORDRE["contributeur"]:
+        sujets_disponibles = (
+            session.execute(select(Sujet).where(Sujet.retire_le.is_(None)).order_by(Sujet.titre))
+            .scalars()
+            .all()
+        )
+    sujets_lies = (
+        session.execute(
+            select(Sujet)
+            .join(RattachementSujet, RattachementSujet.sujet_id == Sujet.id)
+            .where(RattachementSujet.article_id == article_id, Sujet.retire_le.is_(None))
+            .order_by(Sujet.titre)
+        )
+        .scalars()
+        .all()
+    )
+
     return templates.TemplateResponse(
         request,
         "detail.html",
         _contexte(
             compte,
+            sujets_lies=sujets_lies,
+            sujets_disponibles=sujets_disponibles,
             article=article,
             score=score,
             mise_en_contexte=mise_en_contexte,
@@ -984,6 +1009,14 @@ MOTIF_LONGUEUR_MAX = 500
 # protège autant l'affichage que la base.
 COMMENTAIRE_LONGUEUR_MAX = 2000
 PROPOSITIONS_PAR_PAGE = 50
+# Section « Sujets » : bornes de saisie et plafond de création par compte.
+SUJET_TITRE_LONGUEUR_MAX = 150
+SUJET_DESCRIPTION_LONGUEUR_MAX = 2000
+SUJETS_PAR_JOUR_MAX = 5
+# Photos d'un sujet : taille, nombre et légende bornés (les octets vivent en base).
+IMAGE_TAILLE_MAX = 3 * 1024 * 1024
+IMAGES_PAR_SUJET_MAX = 12
+LEGENDE_LONGUEUR_MAX = 200
 
 
 def _redirection(url: str) -> RedirectResponse:
@@ -1038,6 +1071,17 @@ def _message(code: Optional[str]) -> Optional[str]:
         "commentaire_vide": "Un commentaire ne peut pas être vide.",
         "commentaire_trop_long": f"Un commentaire ne peut pas dépasser {COMMENTAIRE_LONGUEUR_MAX} caractères.",
         "commentaire_introuvable": "Commentaire introuvable ou déjà retiré.",
+        "sujet_titre_invalide": f"Le titre est obligatoire ({SUJET_TITRE_LONGUEUR_MAX} caractères au plus).",
+        "sujet_description_invalide": (
+            f"La description est obligatoire ({SUJET_DESCRIPTION_LONGUEUR_MAX} caractères au plus)."
+        ),
+        "sujet_existe": "Un sujet porte déjà ce titre.",
+        "plafond_sujets": f"Plafond atteint ({SUJETS_PAR_JOUR_MAX} sujets par 24 h).",
+        "image_invalide": "Image refusée : JPEG, PNG ou WebP uniquement.",
+        "image_trop_lourde": f"Image trop lourde ({IMAGE_TAILLE_MAX // (1024 * 1024)} Mo au plus).",
+        "legende_trop_longue": f"Légende trop longue ({LEGENDE_LONGUEUR_MAX} caractères au plus).",
+        "plafond_images": f"Ce sujet a déjà {IMAGES_PAR_SUJET_MAX} photos.",
+        "sujet_introuvable": "Sujet ou message introuvable, ou déjà retiré.",
         "compte_introuvable": "Compte introuvable.",
         "superadmin_non_promouvable": "Un superadmin ne se promeut pas.",
         "superadmin_non_retrogradable": "Un superadmin ne se rétrograde pas ici.",
@@ -1584,3 +1628,370 @@ def retirer_commentaire(
         return _avec_erreur("/", "commentaire_introuvable")
     logger.info("%s a retiré le commentaire %s.", compte.pseudo, commentaire_id)
     return _redirection(f"/articles/{retrait}#commentaires")
+
+
+# ==============================================================================
+# Section « Sujets » — fake news regroupées par thème, débat et analyses.
+#
+# Écrit `sujets`, `sujet_articles`, `sujet_messages` — jamais les tables du
+# pipeline, et rien ici n'entre dans un score. Qui peut quoi (vérifié côté
+# serveur à chaque écriture) :
+#   - lire, débattre : tout compte connecté ;
+#   - créer un sujet, rattacher un article, publier une analyse : contributeur
+#     et superadmin (les « journalistes » sont des contributeurs : pas de rôle
+#     dédié tant qu'il n'est pas demandé) ;
+#   - retirer un sujet ou un message : superadmin (masquage, pas suppression).
+# ==============================================================================
+
+
+def _messages_recents(session: Session, pseudo: str) -> int:
+    """Débat et commentaires d'articles partagent le même plafond quotidien :
+    deux tables ne doivent pas doubler le quota. Retraits inclus (cf.
+    `_commentaires_recents`)."""
+    depuis = datetime.now(timezone.utc) - timedelta(days=1)
+    dans_sujets = session.execute(
+        select(func.count())
+        .select_from(SujetMessage)
+        .where(SujetMessage.pseudo == pseudo, SujetMessage.date_creation >= depuis)
+    ).scalar_one()
+    return dans_sujets + _commentaires_recents(session, pseudo)
+
+
+@app.get("/sujets", response_class=HTMLResponse)
+def liste_sujets(
+    request: Request,
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(compte_courant),
+    erreur: Optional[str] = Query(None),
+):
+    nb_articles = (
+        select(RattachementSujet.sujet_id, func.count().label("n"))
+        .group_by(RattachementSujet.sujet_id)
+        .subquery()
+    )
+    lignes = session.execute(
+        select(Sujet, func.coalesce(nb_articles.c.n, 0))
+        .outerjoin(nb_articles, nb_articles.c.sujet_id == Sujet.id)
+        .where(Sujet.retire_le.is_(None))
+        .order_by(Sujet.date_creation.desc())
+    ).all()
+    couvertures = {
+        sujet_id: image_id
+        for sujet_id, image_id in session.execute(
+            select(SujetImage.sujet_id, func.min(SujetImage.id.cast(Text)))
+            .where(SujetImage.retire_le.is_(None))
+            .group_by(SujetImage.sujet_id)
+        ).all()
+    }
+    return templates.TemplateResponse(
+        request,
+        "sujets.html",
+        _contexte(
+            compte,
+            sujets=lignes,
+            couvertures=couvertures,
+            titre_max=SUJET_TITRE_LONGUEUR_MAX,
+            description_max=SUJET_DESCRIPTION_LONGUEUR_MAX,
+            erreur=_message(erreur),
+        ),
+    )
+
+
+@app.post("/sujets")
+def creer_sujet(
+    titre: str = Form(""),
+    description: str = Form(""),
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("contributeur")),
+):
+    """Création réservée aux contributeurs et au superadmin."""
+    exige_csrf(csrf, compte)
+
+    titre_propre = " ".join(titre.split())
+    description_propre = description.strip()
+    if not titre_propre or len(titre_propre) > SUJET_TITRE_LONGUEUR_MAX:
+        return _avec_erreur("/sujets", "sujet_titre_invalide")
+    if not description_propre or len(description_propre) > SUJET_DESCRIPTION_LONGUEUR_MAX:
+        return _avec_erreur("/sujets", "sujet_description_invalide")
+
+    depuis = datetime.now(timezone.utc) - timedelta(days=1)
+    recents = session.execute(
+        select(func.count())
+        .select_from(Sujet)
+        .where(Sujet.cree_par == compte.pseudo, Sujet.date_creation >= depuis)
+    ).scalar_one()
+    if recents >= SUJETS_PAR_JOUR_MAX:
+        return _avec_erreur("/sujets", "plafond_sujets")
+
+    existe = session.execute(
+        select(Sujet.id).where(func.lower(Sujet.titre) == titre_propre.lower(), Sujet.retire_le.is_(None))
+    ).scalar_one_or_none()
+    if existe is not None:
+        return _avec_erreur("/sujets", "sujet_existe")
+
+    sujet = Sujet(titre=titre_propre, description=description_propre, cree_par=compte.pseudo)
+    session.add(sujet)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        return _avec_erreur("/sujets", "sujet_existe")
+    logger.info("Sujet créé par %s : %s", compte.pseudo, sujet.id)
+    return _redirection(f"/sujets/{sujet.id}")
+
+
+@app.get("/sujets/{sujet_id}", response_class=HTMLResponse)
+def detail_sujet(
+    request: Request,
+    sujet_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(compte_courant),
+    erreur: Optional[str] = Query(None),
+):
+    sujet = session.get(Sujet, sujet_id)
+    if sujet is None or (sujet.retire_le is not None and compte.role != "superadmin"):
+        raise HTTPException(status_code=404, detail="Sujet introuvable")
+
+    articles = session.execute(
+        select(Article, Score)
+        .join(RattachementSujet, RattachementSujet.article_id == Article.id)
+        .outerjoin(Score, Score.article_id == Article.id)
+        .where(RattachementSujet.sujet_id == sujet_id)
+        .order_by(Article.date_publication.desc())
+    ).all()
+
+    messages = select(SujetMessage).where(SujetMessage.sujet_id == sujet_id)
+    if compte.role != "superadmin":
+        messages = messages.where(SujetMessage.retire_le.is_(None))
+    messages = session.execute(messages.order_by(SujetMessage.date_creation)).scalars().all()
+
+    images = select(SujetImage.id, SujetImage.legende, SujetImage.retire_le).where(
+        SujetImage.sujet_id == sujet_id
+    )
+    if compte.role != "superadmin":
+        images = images.where(SujetImage.retire_le.is_(None))
+    images = session.execute(images.order_by(SujetImage.date_creation)).all()
+
+    return templates.TemplateResponse(
+        request,
+        "sujet.html",
+        _contexte(
+            compte,
+            sujet=sujet,
+            images=images,
+            legende_max=LEGENDE_LONGUEUR_MAX,
+            articles=articles,
+            analyses=[m for m in messages if m.genre == "analyse"],
+            debat=[m for m in messages if m.genre == "debat"],
+            longueur_max=COMMENTAIRE_LONGUEUR_MAX,
+            erreur=_message(erreur),
+        ),
+    )
+
+
+@app.post("/sujets/{sujet_id}/messages")
+def publier_message_sujet(
+    sujet_id: uuid.UUID,
+    texte: str = Form(""),
+    genre: str = Form("debat"),
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(compte_courant),
+):
+    """Débat ouvert à tout compte connecté ; une `analyse` exige le rôle
+    contributeur, vérifié ici et pas seulement par l'affichage du formulaire."""
+    exige_csrf(csrf, compte)
+    if genre not in GENRES_MESSAGE_SUJET:
+        raise HTTPException(status_code=400, detail="Genre de message invalide")
+    if genre == "analyse" and ROLES_ORDRE.get(compte.role, 0) < ROLES_ORDRE["contributeur"]:
+        raise HTTPException(status_code=404, detail="Page introuvable")
+
+    chemin = f"/sujets/{sujet_id}"
+    ancre = "#analyses" if genre == "analyse" else "#debat"
+    propre = texte.strip()
+    if not propre:
+        return _avec_erreur(chemin, "commentaire_vide", ancre)
+    if len(propre) > COMMENTAIRE_LONGUEUR_MAX:
+        return _avec_erreur(chemin, "commentaire_trop_long", ancre)
+
+    sujet = session.get(Sujet, sujet_id)
+    if sujet is None or sujet.retire_le is not None:
+        raise HTTPException(status_code=404, detail="Sujet introuvable")
+
+    plafond = entier_depuis_env(NOM_ENV_COMMENTAIRES_MAX, COMMENTAIRES_PAR_JOUR_PAR_DEFAUT)
+    if _messages_recents(session, compte.pseudo) >= plafond:
+        return _avec_erreur(chemin, "plafond_commentaires", ancre)
+
+    session.add(SujetMessage(sujet_id=sujet_id, genre=genre, pseudo=compte.pseudo, texte=propre))
+    session.commit()
+    logger.info("Message (%s) de %s sur le sujet %s.", genre, compte.pseudo, sujet_id)
+    return _redirection(f"{chemin}{ancre}")
+
+
+@app.post("/articles/{article_id}/sujets")
+def rattacher_article(
+    article_id: uuid.UUID,
+    sujet_id: uuid.UUID = Form(...),
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("contributeur")),
+):
+    """Rattache un article à un sujet (contributeur). Idempotent."""
+    exige_csrf(csrf, compte)
+    sujet = session.get(Sujet, sujet_id)
+    if sujet is None or sujet.retire_le is not None or session.get(Article, article_id) is None:
+        raise HTTPException(status_code=404, detail="Sujet ou article introuvable")
+    deja = session.get(RattachementSujet, (sujet_id, article_id))
+    if deja is None:
+        session.add(RattachementSujet(sujet_id=sujet_id, article_id=article_id, ajoute_par=compte.pseudo))
+        session.commit()
+        logger.info("%s rattache l'article %s au sujet %s.", compte.pseudo, article_id, sujet_id)
+    return _redirection(f"/articles/{article_id}#sujets")
+
+
+@app.post("/sujets/{sujet_id}/retirer")
+def retirer_sujet(
+    sujet_id: uuid.UUID,
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("superadmin")),
+):
+    """Masquage d'un sujet par le superadmin (rien n'est effacé)."""
+    exige_csrf(csrf, compte)
+    resultat = session.execute(
+        update(Sujet)
+        .where(Sujet.id == sujet_id, Sujet.retire_le.is_(None))
+        .values(retire_le=datetime.now(timezone.utc), retire_par=compte.pseudo)
+    )
+    session.commit()
+    if not resultat.rowcount:
+        return _avec_erreur("/sujets", "sujet_introuvable")
+    logger.info("%s a retiré le sujet %s.", compte.pseudo, sujet_id)
+    return _redirection("/sujets")
+
+
+@app.post("/sujets/messages/{message_id}/retirer")
+def retirer_message_sujet(
+    message_id: uuid.UUID,
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("superadmin")),
+):
+    exige_csrf(csrf, compte)
+    sujet_id = session.execute(
+        update(SujetMessage)
+        .where(SujetMessage.id == message_id, SujetMessage.retire_le.is_(None))
+        .values(retire_le=datetime.now(timezone.utc), retire_par=compte.pseudo)
+        .returning(SujetMessage.sujet_id)
+    ).scalar_one_or_none()
+    session.commit()
+    if sujet_id is None:
+        return _avec_erreur("/sujets", "sujet_introuvable")
+    logger.info("%s a retiré le message %s.", compte.pseudo, message_id)
+    return _redirection(f"/sujets/{sujet_id}")
+
+
+def _type_image(octets: bytes) -> Optional[str]:
+    """Type déduit du CONTENU (signature), jamais du nom ni du type déclaré par le
+    navigateur : c'est la seule valeur qu'on ressert ensuite en Content-Type."""
+    if octets.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if octets.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if octets[:4] == b"RIFF" and octets[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@app.post("/sujets/{sujet_id}/images")
+async def ajouter_image_sujet(
+    sujet_id: uuid.UUID,
+    image: UploadFile = File(...),
+    legende: str = Form(""),
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("contributeur")),
+):
+    """Ajout d'une photo à un sujet (contributeur ou superadmin)."""
+    exige_csrf(csrf, compte)
+    chemin = f"/sujets/{sujet_id}"
+
+    sujet = session.get(Sujet, sujet_id)
+    if sujet is None or sujet.retire_le is not None:
+        return _avec_erreur("/sujets", "sujet_introuvable")
+
+    legende_propre = " ".join(legende.split())
+    if len(legende_propre) > LEGENDE_LONGUEUR_MAX:
+        return _avec_erreur(chemin, "legende_trop_longue")
+
+    # Lecture bornée : on ne charge jamais plus que la limite + 1 octet.
+    octets = await image.read(IMAGE_TAILLE_MAX + 1)
+    if len(octets) > IMAGE_TAILLE_MAX:
+        return _avec_erreur(chemin, "image_trop_lourde")
+    type_mime = _type_image(octets)
+    if type_mime is None:
+        return _avec_erreur(chemin, "image_invalide")
+
+    deja = session.execute(
+        select(func.count())
+        .select_from(SujetImage)
+        .where(SujetImage.sujet_id == sujet_id, SujetImage.retire_le.is_(None))
+    ).scalar_one()
+    if deja >= IMAGES_PAR_SUJET_MAX:
+        return _avec_erreur(chemin, "plafond_images")
+
+    session.add(
+        SujetImage(
+            sujet_id=sujet_id,
+            type_mime=type_mime,
+            donnees=octets,
+            legende=legende_propre,
+            ajoute_par=compte.pseudo,
+        )
+    )
+    session.commit()
+    logger.info("%s ajoute une photo au sujet %s.", compte.pseudo, sujet_id)
+    return _redirection(f"{chemin}#photos")
+
+
+@app.get("/sujets/{sujet_id}/images/{image_id}")
+def servir_image_sujet(
+    sujet_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(compte_courant),
+):
+    image = session.get(SujetImage, image_id)
+    if image is None or image.sujet_id != sujet_id:
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    sujet = session.get(Sujet, sujet_id)
+    if (image.retire_le is not None or sujet.retire_le is not None) and compte.role != "superadmin":
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    return Response(
+        content=image.donnees,
+        media_type=image.type_mime,
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@app.post("/sujets/images/{image_id}/retirer")
+def retirer_image_sujet(
+    image_id: uuid.UUID,
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("superadmin")),
+):
+    """Masquage d'une photo par le superadmin (rien n'est effacé)."""
+    exige_csrf(csrf, compte)
+    sujet_id = session.execute(
+        update(SujetImage)
+        .where(SujetImage.id == image_id, SujetImage.retire_le.is_(None))
+        .values(retire_le=func.now(), retire_par=compte.pseudo)
+        .returning(SujetImage.sujet_id)
+    ).scalar_one_or_none()
+    session.commit()
+    if sujet_id is None:
+        return _avec_erreur("/sujets", "sujet_introuvable")
+    logger.info("%s a retiré la photo %s.", compte.pseudo, image_id)
+    return _redirection(f"/sujets/{sujet_id}#photos")

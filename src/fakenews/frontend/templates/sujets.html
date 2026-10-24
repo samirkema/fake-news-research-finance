@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Sujets — Fake News Détection{% endblock %}
+{% block content %}
+<h2>Sujets</h2>
+<p class="aide">
+  Les fausses informations regroupées par thème : retrouvez les articles liés,
+  débattez, et lisez les analyses de fond sur l'évolution de chaque sujet.
+</p>
+
+{% if erreur %}<p class="erreur" role="alert">{{ erreur }}</p>{% endif %}
+
+{% if sujets %}
+<ul class="cartes">
+  {% for sujet, nb in sujets %}
+  <li>
+    <a class="carte-lien" href="/sujets/{{ sujet.id }}">
+      <div class="couverture">
+        {% if couvertures.get(sujet.id) %}<img src="/sujets/{{ sujet.id }}/images/{{ couvertures[sujet.id] }}" alt="" loading="lazy">{% endif %}
+      </div>
+      <div class="corps">
+        <p class="rubrique">{{ nb }} article{{ "s" if nb > 1 }}</p>
+        <h3>{{ sujet.titre }}</h3>
+        <p class="aide">Ouvert par {{ sujet.cree_par }} le {{ sujet.date_creation.strftime("%Y-%m-%d") }}</p>
+      </div>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Aucun sujet pour l'instant.</p>
+{% endif %}
+
+{% if peut_decider %}
+<h3>Ouvrir un nouveau sujet</h3>
+<form method="post" action="/sujets" class="empile">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="titre">Titre</label>
+  <input type="text" id="titre" name="titre" required maxlength="{{ titre_max }}">
+  <label for="description">Description (de quoi s'agit-il ?)</label>
+  <textarea id="description" name="description" rows="4" required maxlength="{{ description_max }}"></textarea>
+  <button type="submit">Créer le sujet</button>
+</form>
+{% endif %}
+{% endblock %}
