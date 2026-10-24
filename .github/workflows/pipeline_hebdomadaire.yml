@@ -1,12 +1,14 @@
-name: Pipeline quotidien
+name: Pipeline bihebdomadaire
 
 # NB : le nom de fichier (pipeline_hebdomadaire.yml) est conservé pour historique —
-# d'autres docs le référencent — mais la cadence est désormais QUOTIDIENNE.
+# d'autres docs le référencent — mais la cadence est désormais 2 FOIS PAR SEMAINE (coût).
 "on":
   # Réactivé le 2026-10-14 (était en pause depuis août pour ne pas consommer la
   # clé Anthropic sans action explicite). Recommenter le bloc pour remettre en pause.
   schedule:
-    - cron: "0 6 * * *" # chaque jour à 06:00 UTC
+    # Un run coûte ~0,19 € ; quotidien = ~5,7 €/mois. Lundi + jeudi = ~8-9 runs/mois
+    # ≈ 1,6 €, sous le plafond de 2 €/mois (tâche #126).
+    - cron: "0 6 * * 1,4" # lundi et jeudi à 06:00 UTC
   workflow_dispatch: {} # déclenchement manuel possible depuis GitHub
 
 jobs:

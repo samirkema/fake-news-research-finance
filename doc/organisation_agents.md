@@ -59,7 +59,7 @@ Forum (commentaires / propositions, V3)
 - **Ponctuel** : `Agent({ subagent_type: "pipeline-dev", prompt: "..." })` — tu le demandes dans la conversation, comme aujourd'hui.
 - **Pipeline multi-agents coordonné** (ex: triage puis dev puis revue en une fois) : outil `Workflow`, mais seulement si tu le demandes explicitement — ce n'est pas automatique.
 - **Récurrent, ordinateur éteint** (activé le 2026-10-14, via GitHub Actions ; les noms de fichiers `*_hebdomadaire.yml` sont historiques, la cadence est désormais **quotidienne**) :
-  - chaque jour 06:00 UTC, `pipeline_hebdomadaire.yml` : collecte → notation → contextualisation ;
+  - lundi et jeudi 06:00 UTC, `pipeline_hebdomadaire.yml` : collecte → notation → contextualisation ;
   - chaque jour 08:00 UTC, `triage_hebdomadaire.yml` : `product-triage` lit les retours forum **et** les mails récents de la boîte de contact (pré-extraits en lecture seule dans `mails.json` par `python -m fakenews.product.extraire_mails`, nécessite le secret `GMAIL_APP_PASSWORD` ; sans lui la boîte n'est pas lue et le triage continue), puis publie une issue « Backlog » ;
   - à tout moment, `claude.yml` : commenter `@claude ...` dans une issue ou une PR (par ex. « @claude fais l'item 3 ») lance Claude Code sur GitHub, qui pousse une branche et propose une PR. Le merge reste ta décision.
 
