@@ -22,7 +22,7 @@ Scraper  -->  Évaluateur  -->  Contextualiseur  -->  Frontend
 
 | Bloc | Rôle |
 |---|---|
-| **Scraper** | Collecte RSS + Reddit, déduplication, normalisation |
+| **Scraper** | Collecte RSS, réseaux sociaux (Bluesky, Mastodon, Reddit), déduplication, normalisation |
 | **Évaluateur** | Calcule des signaux de fiabilité et un score composite 0-100 |
 | **Contextualiseur** | Génère une explication pour les articles jugés suspects |
 | **Frontend** | Consultation (FastAPI + Jinja2) + écritures du crowdsourcing V3 : propositions, file de décision, comptes, commentaires |
@@ -31,7 +31,7 @@ Détails complets : [doc/V0/architecture.md](doc/V0/architecture.md) et [doc/V0/
 
 ## État actuel
 
-- **Scraper** : collecte RSS et Reddit opérationnelle, déduplication, orchestration quotidienne active (déclenchement automatique chaque jour, voir ci-dessous).
+- **Scraper** : collecte RSS (presse et sources douteuses), réseaux sociaux — Bluesky (recherche publique, sujets finance et actualité) et Mastodon (flux publics par hashtag), sans compte ni clé — et Reddit (en attente de l'accès API, la collecte reste vide d'ici là). Déduplication, orchestration quotidienne active (voir ci-dessous).
 - **Évaluateur** : score composite + signaux réputation, fact-checking, source primaire, style, LLM bootstrap (Claude). Corroboration croisée et décalage viral restent à implémenter (nécessitent une brique de clustering commune).
 - **Contextualiseur** : déclenchement, génération réelle (Claude), validation des preuves et persistance en place.
 - **Frontend** : liste filtrable/paginée des articles suspects, détail des scores, mise en contexte.
@@ -96,6 +96,7 @@ psql "$DATABASE_URL" -f supabase/migrations/0006_index_date_collecte.sql
 psql "$DATABASE_URL" -f supabase/migrations/0007_commentaires.sql
 psql "$DATABASE_URL" -f supabase/migrations/0008_salle.sql
 psql "$DATABASE_URL" -f supabase/migrations/0009_usage_llm.sql
+psql "$DATABASE_URL" -f supabase/migrations/0010_plateformes_reseaux_sociaux.sql
 ```
 
 La `0009` crée le compteur du plafond de dépense Claude (2 €/mois par défaut, réglable via `LLM_BUDGET_MENSUEL_EUR`). Le garde est fail-closed : **sans cette migration, aucun appel Claude ne part** (évaluateur LLM et contextualiseur dégradés).
