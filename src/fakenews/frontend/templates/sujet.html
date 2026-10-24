@@ -17,6 +17,50 @@
 
 {% if erreur %}<p class="erreur" role="alert">{{ erreur }}</p>{% endif %}
 
+<section id="photos">
+  <h3>Photos</h3>
+  {% if images %}
+  <ul class="galerie">
+    {% for img in images %}
+    <li{% if img.retire_le %} class="retire"{% endif %}>
+      <figure>
+        <a class="vignette" href="#photo-{{ img.id }}" aria-label="Agrandir la photo{% if img.legende %} : {{ img.legende }}{% endif %}">
+          <img src="/sujets/{{ sujet.id }}/images/{{ img.id }}" alt="{{ img.legende }}" loading="lazy">
+        </a>
+        {% if img.legende %}<figcaption>{{ img.legende }}</figcaption>{% endif %}
+      </figure>
+      {% if peut_administrer and not img.retire_le %}
+      <form method="post" action="/sujets/images/{{ img.id }}/retirer" class="enligne">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit">Retirer</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% for img in images %}
+  <div class="visionneuse" id="photo-{{ img.id }}" role="dialog" aria-label="Photo agrandie">
+    <a class="fond" href="#photos" aria-label="Fermer"></a>
+    <a class="fermer" href="#photos" aria-label="Fermer">×</a>
+    <img src="/sujets/{{ sujet.id }}/images/{{ img.id }}" alt="{{ img.legende }}" loading="lazy">
+    {% if img.legende %}<p>{{ img.legende }}</p>{% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="aide">Aucune photo pour l'instant.</p>
+  {% endif %}
+  {% if peut_decider and not sujet.retire_le %}
+  <form method="post" action="/sujets/{{ sujet.id }}/images" enctype="multipart/form-data" class="empile">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="image">Ajouter une photo (JPEG, PNG ou WebP, 3 Mo au plus)</label>
+    <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/webp" required>
+    <label for="legende">Légende (facultative)</label>
+    <input type="text" id="legende" name="legende" maxlength="{{ legende_max }}">
+    <button type="submit">Ajouter la photo</button>
+  </form>
+  {% endif %}
+</section>
+
 <section id="articles">
   <h3>Articles liés</h3>
   {% if articles %}

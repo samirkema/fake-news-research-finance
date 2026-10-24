@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    LargeBinary,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -303,6 +304,34 @@ class SujetMessage(Base):
             "(retire_le is null and retire_par is null) "
             "or (retire_le is not null and retire_par is not null)",
             name="ck_sujet_messages_retrait_trace",
+        ),
+    )
+
+
+class SujetImage(Base):
+    """Photo illustrant un sujet (miroir de la migration 0012). Octets en base :
+    pas d'URL externe, donc rien à pister ni à voir disparaître. Retrait = masquage."""
+
+    __tablename__ = "sujet_images"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sujet_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sujets.id", ondelete="CASCADE"), nullable=False
+    )
+    type_mime: Mapped[str] = mapped_column(Text, nullable=False)
+    donnees: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    legende: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    ajoute_par: Mapped[str] = mapped_column(Text, nullable=False)
+    date_creation: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    retire_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retire_par: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        CheckConstraint("type_mime in ('image/jpeg', 'image/png', 'image/webp')", name="ck_sujet_images_mime"),
+        CheckConstraint(
+            "(retire_le is null and retire_par is null) "
+            "or (retire_le is not null and retire_par is not null)",
+            name="ck_sujet_images_retrait_trace",
         ),
     )
 

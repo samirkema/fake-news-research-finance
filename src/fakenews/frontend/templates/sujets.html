@@ -10,12 +10,19 @@
 {% if erreur %}<p class="erreur" role="alert">{{ erreur }}</p>{% endif %}
 
 {% if sujets %}
-<ul>
+<ul class="cartes">
   {% for sujet, nb in sujets %}
   <li>
-    <a href="/sujets/{{ sujet.id }}">{{ sujet.titre }}</a>
-    <small class="aide">— {{ nb }} article{{ "s" if nb > 1 }}, ouvert par {{ sujet.cree_par }}
-      le {{ sujet.date_creation.strftime("%Y-%m-%d") }}</small>
+    <a class="carte-lien" href="/sujets/{{ sujet.id }}">
+      <div class="couverture">
+        {% if couvertures.get(sujet.id) %}<img src="/sujets/{{ sujet.id }}/images/{{ couvertures[sujet.id] }}" alt="" loading="lazy">{% endif %}
+      </div>
+      <div class="corps">
+        <p class="rubrique">{{ nb }} article{{ "s" if nb > 1 }}</p>
+        <h3>{{ sujet.titre }}</h3>
+        <p class="aide">Ouvert par {{ sujet.cree_par }} le {{ sujet.date_creation.strftime("%Y-%m-%d") }}</p>
+      </div>
+    </a>
   </li>
   {% endfor %}
 </ul>

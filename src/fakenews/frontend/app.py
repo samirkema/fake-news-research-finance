@@ -25,10 +25,10 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import quote, urlencode, urlsplit
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select, update
+from sqlalchemy import Text, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -53,6 +53,7 @@ from fakenews.models import (
     Score,
     Sujet,
     RattachementSujet,
+    SujetImage,
     SujetMessage,
 )
 from fakenews.normalisation import canonicaliser_url
@@ -1012,6 +1013,10 @@ PROPOSITIONS_PAR_PAGE = 50
 SUJET_TITRE_LONGUEUR_MAX = 150
 SUJET_DESCRIPTION_LONGUEUR_MAX = 2000
 SUJETS_PAR_JOUR_MAX = 5
+# Photos d'un sujet : taille, nombre et légende bornés (les octets vivent en base).
+IMAGE_TAILLE_MAX = 3 * 1024 * 1024
+IMAGES_PAR_SUJET_MAX = 12
+LEGENDE_LONGUEUR_MAX = 200
 
 
 def _redirection(url: str) -> RedirectResponse:
@@ -1072,6 +1077,10 @@ def _message(code: Optional[str]) -> Optional[str]:
         ),
         "sujet_existe": "Un sujet porte déjà ce titre.",
         "plafond_sujets": f"Plafond atteint ({SUJETS_PAR_JOUR_MAX} sujets par 24 h).",
+        "image_invalide": "Image refusée : JPEG, PNG ou WebP uniquement.",
+        "image_trop_lourde": f"Image trop lourde ({IMAGE_TAILLE_MAX // (1024 * 1024)} Mo au plus).",
+        "legende_trop_longue": f"Légende trop longue ({LEGENDE_LONGUEUR_MAX} caractères au plus).",
+        "plafond_images": f"Ce sujet a déjà {IMAGES_PAR_SUJET_MAX} photos.",
         "sujet_introuvable": "Sujet ou message introuvable, ou déjà retiré.",
         "compte_introuvable": "Compte introuvable.",
         "superadmin_non_promouvable": "Un superadmin ne se promeut pas.",
@@ -1666,12 +1675,21 @@ def liste_sujets(
         .where(Sujet.retire_le.is_(None))
         .order_by(Sujet.date_creation.desc())
     ).all()
+    couvertures = {
+        sujet_id: image_id
+        for sujet_id, image_id in session.execute(
+            select(SujetImage.sujet_id, func.min(SujetImage.id.cast(Text)))
+            .where(SujetImage.retire_le.is_(None))
+            .group_by(SujetImage.sujet_id)
+        ).all()
+    }
     return templates.TemplateResponse(
         request,
         "sujets.html",
         _contexte(
             compte,
             sujets=lignes,
+            couvertures=couvertures,
             titre_max=SUJET_TITRE_LONGUEUR_MAX,
             description_max=SUJET_DESCRIPTION_LONGUEUR_MAX,
             erreur=_message(erreur),
@@ -1748,12 +1766,21 @@ def detail_sujet(
         messages = messages.where(SujetMessage.retire_le.is_(None))
     messages = session.execute(messages.order_by(SujetMessage.date_creation)).scalars().all()
 
+    images = select(SujetImage.id, SujetImage.legende, SujetImage.retire_le).where(
+        SujetImage.sujet_id == sujet_id
+    )
+    if compte.role != "superadmin":
+        images = images.where(SujetImage.retire_le.is_(None))
+    images = session.execute(images.order_by(SujetImage.date_creation)).all()
+
     return templates.TemplateResponse(
         request,
         "sujet.html",
         _contexte(
             compte,
             sujet=sujet,
+            images=images,
+            legende_max=LEGENDE_LONGUEUR_MAX,
             articles=articles,
             analyses=[m for m in messages if m.genre == "analyse"],
             debat=[m for m in messages if m.genre == "debat"],
@@ -1863,3 +1890,108 @@ def retirer_message_sujet(
         return _avec_erreur("/sujets", "sujet_introuvable")
     logger.info("%s a retiré le message %s.", compte.pseudo, message_id)
     return _redirection(f"/sujets/{sujet_id}")
+
+
+def _type_image(octets: bytes) -> Optional[str]:
+    """Type déduit du CONTENU (signature), jamais du nom ni du type déclaré par le
+    navigateur : c'est la seule valeur qu'on ressert ensuite en Content-Type."""
+    if octets.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if octets.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if octets[:4] == b"RIFF" and octets[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@app.post("/sujets/{sujet_id}/images")
+async def ajouter_image_sujet(
+    sujet_id: uuid.UUID,
+    image: UploadFile = File(...),
+    legende: str = Form(""),
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("contributeur")),
+):
+    """Ajout d'une photo à un sujet (contributeur ou superadmin)."""
+    exige_csrf(csrf, compte)
+    chemin = f"/sujets/{sujet_id}"
+
+    sujet = session.get(Sujet, sujet_id)
+    if sujet is None or sujet.retire_le is not None:
+        return _avec_erreur("/sujets", "sujet_introuvable")
+
+    legende_propre = " ".join(legende.split())
+    if len(legende_propre) > LEGENDE_LONGUEUR_MAX:
+        return _avec_erreur(chemin, "legende_trop_longue")
+
+    # Lecture bornée : on ne charge jamais plus que la limite + 1 octet.
+    octets = await image.read(IMAGE_TAILLE_MAX + 1)
+    if len(octets) > IMAGE_TAILLE_MAX:
+        return _avec_erreur(chemin, "image_trop_lourde")
+    type_mime = _type_image(octets)
+    if type_mime is None:
+        return _avec_erreur(chemin, "image_invalide")
+
+    deja = session.execute(
+        select(func.count())
+        .select_from(SujetImage)
+        .where(SujetImage.sujet_id == sujet_id, SujetImage.retire_le.is_(None))
+    ).scalar_one()
+    if deja >= IMAGES_PAR_SUJET_MAX:
+        return _avec_erreur(chemin, "plafond_images")
+
+    session.add(
+        SujetImage(
+            sujet_id=sujet_id,
+            type_mime=type_mime,
+            donnees=octets,
+            legende=legende_propre,
+            ajoute_par=compte.pseudo,
+        )
+    )
+    session.commit()
+    logger.info("%s ajoute une photo au sujet %s.", compte.pseudo, sujet_id)
+    return _redirection(f"{chemin}#photos")
+
+
+@app.get("/sujets/{sujet_id}/images/{image_id}")
+def servir_image_sujet(
+    sujet_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(compte_courant),
+):
+    image = session.get(SujetImage, image_id)
+    if image is None or image.sujet_id != sujet_id:
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    sujet = session.get(Sujet, sujet_id)
+    if (image.retire_le is not None or sujet.retire_le is not None) and compte.role != "superadmin":
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    return Response(
+        content=image.donnees,
+        media_type=image.type_mime,
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@app.post("/sujets/images/{image_id}/retirer")
+def retirer_image_sujet(
+    image_id: uuid.UUID,
+    csrf: str = Form(""),
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(exige_role("superadmin")),
+):
+    """Masquage d'une photo par le superadmin (rien n'est effacé)."""
+    exige_csrf(csrf, compte)
+    sujet_id = session.execute(
+        update(SujetImage)
+        .where(SujetImage.id == image_id, SujetImage.retire_le.is_(None))
+        .values(retire_le=func.now(), retire_par=compte.pseudo)
+        .returning(SujetImage.sujet_id)
+    ).scalar_one_or_none()
+    session.commit()
+    if sujet_id is None:
+        return _avec_erreur("/sujets", "sujet_introuvable")
+    logger.info("%s a retiré la photo %s.", compte.pseudo, image_id)
+    return _redirection(f"/sujets/{sujet_id}#photos")

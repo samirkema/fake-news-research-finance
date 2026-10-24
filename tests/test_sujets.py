@@ -197,3 +197,66 @@ def test_retrait_reserve_au_superadmin_et_masque_sans_effacer(client, db_session
 def test_acces_anonyme_redirige(client, mode_heberge):
     mode_heberge("secret")
     assert client.get("/sujets", follow_redirects=False).status_code in (302, 303, 307)
+
+
+# --- Photos des sujets -------------------------------------------------------
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+def _envoyer_image(client, sujet_id, octets=PNG, nom="p.png", legende="Vue"):
+    return client.post(
+        f"/sujets/{sujet_id}/images",
+        data={"legende": legende, "csrf": _csrf(client, f"/sujets/{sujet_id}")},
+        files={"image": (nom, octets, "image/png")},
+        follow_redirects=False,
+    )
+
+
+def test_contributeur_ajoute_et_affiche_une_photo(client, db_session, mode_heberge):
+    from fakenews.models import SujetImage
+
+    _contributeur(client, db_session, mode_heberge)
+    sujet = _sujet(db_session)
+    assert _envoyer_image(client, sujet.id).status_code == 303
+    img = db_session.execute(select(SujetImage)).scalar_one()
+    assert img.type_mime == "image/png" and img.legende == "Vue"
+    page = client.get(f"/sujets/{sujet.id}").text
+    assert f"/sujets/{sujet.id}/images/{img.id}" in page and f"#photo-{img.id}" in page
+    r = client.get(f"/sujets/{sujet.id}/images/{img.id}")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content == PNG
+    assert f"/sujets/{sujet.id}/images/{img.id}" in client.get("/sujets").text
+
+
+def test_photo_refusee_si_contenu_pas_une_image(client, db_session, mode_heberge):
+    from fakenews.models import SujetImage
+
+    _contributeur(client, db_session, mode_heberge)
+    sujet = _sujet(db_session)
+    r = _envoyer_image(client, sujet.id, octets=b"<script>alert(1)</script>", nom="x.png")
+    assert "image_invalide" in r.headers["location"]
+    assert db_session.execute(select(SujetImage)).first() is None
+
+
+def test_photo_refusee_si_trop_lourde(client, db_session, mode_heberge):
+    from fakenews.frontend.app import IMAGE_TAILLE_MAX
+
+    _contributeur(client, db_session, mode_heberge)
+    sujet = _sujet(db_session)
+    r = _envoyer_image(client, sujet.id, octets=PNG + b"0" * IMAGE_TAILLE_MAX)
+    assert "image_trop_lourde" in r.headers["location"]
+
+
+def test_photo_sans_csrf_refusee(client, db_session, mode_heberge):
+    from fakenews.models import SujetImage
+
+    _contributeur(client, db_session, mode_heberge)
+    sujet = _sujet(db_session)
+    r = client.post(
+        f"/sujets/{sujet.id}/images",
+        data={"csrf": "faux"},
+        files={"image": ("p.png", PNG, "image/png")},
+        follow_redirects=False,
+    )
+    assert r.status_code in (400, 403)
+    assert db_session.execute(select(SujetImage)).first() is None

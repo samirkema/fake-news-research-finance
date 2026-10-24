@@ -10,11 +10,17 @@
     h1, h2, h3, h4 { font-family: var(--serif); line-height: 1.25; }
     h2 { font-size: 1.8rem; margin-bottom: 0.5rem; }
     h3 { font-size: 1.25rem; margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid var(--filet); }
-    header.bandeau { text-align: center; margin: 1.5rem 0 1rem; border-top: 4px solid var(--encre); border-bottom: 1px solid var(--encre); padding: 0.75rem 0; }
-    header.bandeau h1 { margin: 0; font-size: 2.2rem; letter-spacing: -0.01em; }
+    /* En-tête façon presse économique : filet rouge, onglet rouge, titre en serif. */
+    header.bandeau { position: relative; text-align: center; margin: 0 0 1rem; padding: 1.6rem 0 0.9rem; border-top: 6px solid var(--accent); border-bottom: 1px solid var(--encre); }
+    header.bandeau::before { content: ""; position: absolute; top: -6px; left: 0; width: 3.2rem; height: 1.6rem; background: var(--accent); }
+    /* Emplacement du logo : remplacer le contenu de <span class="marque"> par une <img>
+       (hauteur fixée ci-dessous) ; le titre texte peut alors rester ou être retiré. */
+    header.bandeau .marque { display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem; }
+    header.bandeau .marque img { height: 3rem; width: auto; display: block; }
+    header.bandeau h1 { margin: 0; font-size: 2.4rem; letter-spacing: -0.015em; }
     header.bandeau h1 a { color: var(--encre); text-decoration: none; }
     header.bandeau h1 a span { color: var(--accent); }
-    header.bandeau p { margin: 0.2rem 0 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--gris); }
+    header.bandeau p { margin: 0.3rem 0 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--gris); }
     .avertissement { background: var(--alerte-fond); border-left: 3px solid var(--accent); padding: 0.6rem 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--gris); }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
     th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--filet); vertical-align: top; }
@@ -52,12 +58,41 @@
     .commentaires .entete { margin: 0 0 0.25rem 0; font-size: 0.85rem; color: var(--gris); }
     .commentaires li.retire { opacity: 0.6; border-left-color: var(--erreur); }
     footer.pied { margin-top: 3rem; padding-top: 1rem; border-top: 4px solid var(--encre); }
+    /* Titres de section façon rubrique : petit chapeau rouge au-dessus du titre. */
+    h2 { border-bottom: 3px solid var(--encre); padding-bottom: 0.35rem; }
+    a.carte-lien { color: inherit; text-decoration: none; }
+    /* Grille de cartes éditoriales (liste des sujets). */
+    ul.cartes { list-style: none; padding: 0; margin: 1.25rem 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1.5rem; }
+    ul.cartes li { background: #fff; border: 1px solid var(--filet); border-top: 3px solid var(--accent); display: flex; flex-direction: column; transition: transform .15s ease, box-shadow .15s ease; }
+    ul.cartes li:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+    ul.cartes .couverture { aspect-ratio: 16 / 10; background: linear-gradient(135deg, #e9e3d6, #d9d4ca); overflow: hidden; }
+    ul.cartes .couverture img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    ul.cartes .corps { padding: 0.9rem 1rem 1rem; }
+    ul.cartes .rubrique { margin: 0; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-weight: 700; }
+    ul.cartes h3 { margin: 0.25rem 0 0.4rem; padding: 0; border: none; font-size: 1.2rem; }
+    ul.cartes p { margin: 0; }
+    /* Galerie de vignettes ; l'image en grand s'ouvre au clic, sans JavaScript (:target). */
+    ul.galerie { list-style: none; padding: 0; margin: 1rem 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.75rem; }
+    ul.galerie figure { margin: 0; }
+    ul.galerie a.vignette { display: block; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--filet); background: #e9e3d6; }
+    ul.galerie a.vignette img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s ease; }
+    ul.galerie a.vignette:hover img, ul.galerie a.vignette:focus-visible img { transform: scale(1.06); }
+    ul.galerie figcaption { font-size: 0.8rem; color: var(--gris); margin-top: 0.25rem; }
+    ul.galerie li.retire { opacity: 0.55; }
+    .visionneuse { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(15,15,15,.92); align-items: center; justify-content: center; flex-direction: column; padding: 1rem; }
+    .visionneuse:target { display: flex; }
+    .visionneuse img { max-width: 100%; max-height: 80vh; object-fit: contain; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+    .visionneuse p { color: #eee; margin: 0.75rem 0 0; text-align: center; max-width: 40rem; }
+    .visionneuse a.fermer { position: absolute; top: 0.75rem; right: 1rem; color: #fff; font-size: 2rem; line-height: 1; text-decoration: none; }
+    .visionneuse a.fond { position: absolute; inset: 0; cursor: zoom-out; }
+    .visionneuse img, .visionneuse p { position: relative; }
+    @media (prefers-reduced-motion: reduce) { ul.cartes li, ul.galerie a.vignette img { transition: none; } }
     .visuellement-cache { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   </style>
 </head>
 <body>
   <header class="bandeau">
-    <h1><a href="/">Fake News <span>/</span> Détection</a></h1>
+    <span class="marque"><h1><a href="/">Fake News <span>/</span> Détection</a></h1></span>
     <p>Fiabilité des informations financières</p>
   </header>
   {# Le rôle n'est jamais écrit à l'écran ; il se manifeste par les accès offerts
