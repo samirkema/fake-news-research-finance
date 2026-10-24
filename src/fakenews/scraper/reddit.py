@@ -18,7 +18,8 @@ def creer_client() -> praw.Reddit:
     return praw.Reddit(
         client_id=os.environ["REDDIT_CLIENT_ID"],
         client_secret=os.environ["REDDIT_CLIENT_SECRET"],
-        user_agent=os.environ.get("REDDIT_USER_AGENT", "fakenews-scraper/0.1 (script personnel)"),
+        # `or` et non le défaut de `get` : un secret CI non défini arrive vide ("").
+        user_agent=os.environ.get("REDDIT_USER_AGENT") or "fakenews-scraper/0.1 (script personnel)",
     )
 
 
