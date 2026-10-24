@@ -81,7 +81,7 @@ Le scraper ne calcule pas lui-même de clusters : il se contente d'attacher l'id
 **afin d'**alimenter le pipeline sans intervention manuelle.
 
 **Critères d'acceptation :**
-- Le scraper est déclenché via une tâche planifiée (cf. "Prochaines étapes" de `fiche-projet-fake-news-trading.md`).
+- Le scraper est déclenché via une tâche planifiée (cf. "Prochaines étapes" de `fiche-projet.md`).
 - Chaque run journalise le nombre d'articles collectés par source (RSS par flux, Reddit par subreddit, GDELT) — ce comptage réel remplace toute estimation a priori du volume hebdomadaire.
 
 ---

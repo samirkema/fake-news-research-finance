@@ -6,7 +6,7 @@ Ce plan séquence le développement des 4 blocs définis dans `architecture.md`,
 
 ## Choix technique global
 
-**Python** de bout en bout : c'est le langage qui a le plus de librairies prêtes à l'emploi pour chaque besoin du projet, et c'est cohérent avec la phase ultérieure de fine-tuning (BERT/RoBERTa) déjà actée dans `fiche-projet-fake-news-trading.md`.
+**Python** de bout en bout : c'est le langage qui a le plus de librairies prêtes à l'emploi pour chaque besoin du projet, et c'est cohérent avec la phase ultérieure de fine-tuning (BERT/RoBERTa) déjà actée dans `fiche-projet.md`.
 
 | Besoin | Librairie/outil pressenti |
 |---|---|
@@ -86,7 +86,7 @@ Séquentiel, chaque étape dépendant de la précédente :
 
 ## Phase 5 — Automatisation bout en bout
 
-Une fois les 4 blocs individuellement fonctionnels : orchestrer scraper → évaluateur → contextualiseur en un unique workflow GitHub Actions planifié hebdomadairement (le frontend reste consulté à la demande sur Vercel, pas dans cette tâche). Correspond au point "automatiser le rapport hebdomadaire via GitHub Actions" de `fiche-projet-fake-news-trading.md`.
+Une fois les 4 blocs individuellement fonctionnels : orchestrer scraper → évaluateur → contextualiseur en un unique workflow GitHub Actions planifié hebdomadairement (le frontend reste consulté à la demande sur Vercel, pas dans cette tâche). Correspond au point "automatiser le rapport hebdomadaire via GitHub Actions" de `fiche-projet.md`.
 
 **Réalisé avec les blocs disponibles aujourd'hui**, pas d'attente de leur complétude totale : `.github/workflows/pipeline_hebdomadaire.yml` enchaîne scraper (US-06) → évaluateur (`run_evaluateur.py`) → contextualiseur (`run_contextualiseur.py`, génération réelle branchée sur Claude). Remplace l'ancien workflow `collecte_hebdomadaire.yml` (scraper seul), pour éviter deux jobs planifiés qui se chevaucheraient.
 
@@ -95,7 +95,7 @@ Une fois les 4 blocs individuellement fonctionnels : orchestrer scraper → éva
 ## Hors de ce plan (pour rappel)
 
 - Le fine-tuning du modèle maison (BERT/RoBERTa/DistilBERT) sur les datasets publics (LIAR, FakeNewsNet, ISOT) + les labels US-07 accumulés : peut démarrer en parallèle dès que suffisamment de labels existent, mais c'est un chantier indépendant de ce plan.
-- Le module de scoring d'impact marché (yfinance) et les stratégies de trading (backtrader/vectorbt) : étapes 4 et 5 de la feuille de route du projet, hors du périmètre "détection fake news" couvert ici.
+- L'étude de l'impact des fake news sur les prix (yfinance) : étape 4 de la feuille de route, hors du périmètre "détection fake news" couvert ici. Les stratégies de trading ont été abandonnées le 2026-10-24 (cf. `fiche-projet.md`).
 
 ---
 

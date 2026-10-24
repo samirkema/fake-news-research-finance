@@ -28,7 +28,7 @@ from sqlalchemy import create_engine, text
 # Agents définis dans .claude/agents/ de ce dépôt : les seuls qui existent sur GitHub.
 AGENTS = {"product-triage", "pipeline-dev", "frontend-forum-dev", "release-captain"}
 MAX_LANCEMENTS_PAR_TACHE = 10
-DEPOT = os.environ.get("GITHUB_REPO", "samirkema/fake-news-trading")
+DEPOT = os.environ.get("GITHUB_REPO", "samirkema/fake-news-research-finance")
 COOKIE = "salle"
 DUREE_SESSION = 30 * 24 * 3600
 # Le code ouvre le lancement d'agents qui poussent dans le dépôt. Le sleep(1) de

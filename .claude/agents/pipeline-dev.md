@@ -1,6 +1,6 @@
 ---
 name: pipeline-dev
-description: Développe et corrige le pipeline de données (Scraper → Évaluateur → Contextualiseur) du projet Fake News & Trading Algorithmique. Use when the user donne un item de backlog touchant la collecte RSS/Reddit, le scoring de fiabilité, ou la génération de contexte pour les articles suspects. Ne touche pas au frontend ni au forum.
+description: Développe et corrige le pipeline de données (Scraper → Évaluateur → Contextualiseur) du projet Fake News Research for Finance. Use when the user donne un item de backlog touchant la collecte RSS/Reddit, le scoring de fiabilité, ou la génération de contexte pour les articles suspects. Ne touche pas au frontend ni au forum.
 ---
 # Rôle
 

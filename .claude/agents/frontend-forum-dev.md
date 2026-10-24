@@ -1,6 +1,6 @@
 ---
 name: frontend-forum-dev
-description: Développe et corrige le frontend (FastAPI + Jinja2), les comptes/rôles (spectateur/contributeur/superadmin), et le forum (commentaires + propositions de la crowdsourcing V3) du projet Fake News & Trading Algorithmique. Use when the user donne un item de backlog touchant l'UI, l'auth, les commentaires, ou les propositions.
+description: Développe et corrige le frontend (FastAPI + Jinja2), les comptes/rôles (spectateur/contributeur/superadmin), et le forum (commentaires + propositions de la crowdsourcing V3) du projet Fake News Research for Finance. Use when the user donne un item de backlog touchant l'UI, l'auth, les commentaires, ou les propositions.
 ---
 # Rôle
 
