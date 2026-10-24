@@ -17,7 +17,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # « proposition » : article entré par la file d'attente humaine plutôt que par la
 # collecte automatique (V3, cf. doc/V3/userstories_crowdsourcing.md US-04).
-PLATEFORMES = ("rss", "reddit", "proposition")
+# « bluesky » / « mastodon » : posts de réseaux sociaux (migration 0010).
+PLATEFORMES = ("rss", "reddit", "proposition", "bluesky", "mastodon")
 
 STATUTS_PROPOSITION = ("en_attente", "acceptee", "refusee", "collectee", "echec_collecte")
 # Statuts pour lesquels une proposition occupe la place de son URL : on n'en

@@ -52,6 +52,15 @@ def nettoyer_html(brut: str) -> str:
     return re.sub(r"\s+", " ", unescape(_BALISES.sub(" ", sans_inertes))).strip()
 
 
+def titre_depuis_texte(texte: str, longueur: int = 120) -> str:
+    """Titre d'un contenu qui n'en a pas (post Mastodon, Bluesky) : sa première
+    ligne, coupée au dernier mot avant `longueur` caractères."""
+    ligne = texte.strip().splitlines()[0] if texte.strip() else ""
+    if len(ligne) <= longueur:
+        return ligne
+    return ligne[:longueur].rsplit(" ", 1)[0] + "…"
+
+
 def _extraire_contenu(entree) -> str:
     if entree.get("content"):
         brut = entree["content"][0].get("value", "")
@@ -177,7 +186,8 @@ def collecter_rss(session: Session) -> dict:
         # aussi les entrées sans titre et sans lien (finding L3).
         compteurs = {"ajoutes": 0, "mis_a_jour": 0, "ignores_incomplets": 0, "ignores_erreur": 0}
         for entree in flux.entries:
-            titre = entree.get("title")
+            # Les posts Mastodon n'ont pas de titre : on le tire du texte.
+            titre = entree.get("title") or titre_depuis_texte(_extraire_contenu(entree))
             lien = entree.get("link")
             date_publication = _extraire_date_publication(entree)
             if not titre or not lien or date_publication is None:
@@ -213,7 +223,7 @@ def collecter_rss(session: Session) -> dict:
                             "url": lien,
                             "url_canonique": url_canonique,
                             "hash_contenu": hacher_contenu(titre, contenu),
-                            "plateforme": "rss",
+                            "plateforme": source_effective.get("plateforme", "rss"),
                             "metadonnees": {"flux_nom": source_effective["nom"]},
                         },
                     )

@@ -61,4 +61,16 @@ RSS_SOURCES = [
         "domaine_source": "legorafi.fr",
         "url": "https://www.legorafi.fr/feed/",
     },
+    # -- Réseaux sociaux : Mastodon, posts publics par hashtag --
+    # Flux RSS publics, sans compte ni clé. Les posts n'ont pas de titre : il est
+    # tiré du texte (cf. rss.titre_depuis_texte).
+    *[
+        {
+            "nom": f"Mastodon #{tag}",
+            "domaine_source": "mastodon.social",
+            "url": f"https://mastodon.social/tags/{tag}.rss",
+            "plateforme": "mastodon",
+        }
+        for tag in ("stocks", "investing", "crypto", "finance", "breakingnews", "news")
+    ],
 ]
