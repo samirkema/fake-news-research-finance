@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ sujet.titre }} — Fake News Détection{% endblock %}
+{% block content %}
+<p><a href="/sujets">← Tous les sujets</a></p>
+<h2>{{ sujet.titre }}</h2>
+<p class="aide">
+  Ouvert par {{ sujet.cree_par }} le {{ sujet.date_creation.strftime("%Y-%m-%d") }}.
+  {% if sujet.retire_le %}Sujet retiré par {{ sujet.retire_par }}, visible de vous seul.{% endif %}
+</p>
+<p>{{ sujet.description }}</p>
+{% if peut_administrer and not sujet.retire_le %}
+<form method="post" action="/sujets/{{ sujet.id }}/retirer" class="enligne">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit">Retirer ce sujet</button>
+</form>
+{% endif %}
+
+{% if erreur %}<p class="erreur" role="alert">{{ erreur }}</p>{% endif %}
+
+<section id="articles">
+  <h3>Articles liés</h3>
+  {% if articles %}
+  <table>
+    <thead><tr><th>Score</th><th>Titre</th><th>Domaine</th><th>Date</th></tr></thead>
+    <tbody>
+      {% for article, score in articles %}
+      <tr>
+        <td class="score">{% if score and score.score_final is not none %}{{ "%.1f"|format(score.score_final) }}{% else %}—{% endif %}</td>
+        <td><a href="/articles/{{ article.id }}">{{ article.titre }}</a></td>
+        <td>{{ article.domaine_source or "—" }}</td>
+        <td>{{ article.date_publication.strftime("%Y-%m-%d") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Aucun article rattaché pour l'instant.{% if peut_decider %} Depuis la fiche d'un article, utilisez « Rattacher à un sujet ».{% endif %}</p>
+  {% endif %}
+</section>
+
+{% macro fil(messages) %}
+<ul class="fil">
+  {% for m in messages %}
+  <li{% if m.retire_le %} class="retire"{% endif %}>
+    <p class="entete">
+      <strong>{{ m.pseudo }}</strong>
+      <small>{{ m.date_creation.strftime("%Y-%m-%d") }}</small>
+      {% if m.retire_le %}<small>— retiré par {{ m.retire_par }} le {{ m.retire_le.strftime("%Y-%m-%d") }}, visible de vous seul</small>{% endif %}
+    </p>
+    <p>{{ m.texte }}</p>
+    {% if peut_administrer and not m.retire_le %}
+    <form method="post" action="/sujets/messages/{{ m.id }}/retirer" class="enligne">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit">Retirer</button>
+    </form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+<section id="analyses" class="commentaires">
+  <h3>Analyses</h3>
+  <p class="aide">Analyses de fond sur l'évolution du sujet, rédigées par les contributeurs.</p>
+  {% if analyses %}{{ fil(analyses) }}{% else %}<p>Aucune analyse pour l'instant.</p>{% endif %}
+  {% if peut_decider and not sujet.retire_le %}
+  <form method="post" action="/sujets/{{ sujet.id }}/messages" class="empile">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="genre" value="analyse">
+    <label for="analyse">Publier une analyse</label>
+    <textarea id="analyse" name="texte" rows="6" required maxlength="{{ longueur_max }}"></textarea>
+    <button type="submit">Publier l'analyse</button>
+  </form>
+  {% endif %}
+</section>
+
+<section id="debat" class="commentaires">
+  <h3>Débat</h3>
+  <p class="aide">Ces messages sont écrits par les lecteurs. Ils n'entrent dans aucun calcul de score.</p>
+  {% if debat %}{{ fil(debat) }}{% else %}<p>Aucun message pour l'instant.</p>{% endif %}
+  {% if not sujet.retire_le %}
+  <form method="post" action="/sujets/{{ sujet.id }}/messages" class="empile">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="genre" value="debat">
+    <label for="texte">Participer au débat</label>
+    <textarea id="texte" name="texte" rows="4" required maxlength="{{ longueur_max }}"></textarea>
+    <button type="submit">Publier</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
