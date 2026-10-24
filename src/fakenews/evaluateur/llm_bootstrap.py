@@ -1,5 +1,5 @@
 """US-07 évaluateur : scoring de suspicion via un LLM en ligne, en bootstrap avant
-le modèle maison fine-tuné (cf. doc/fiche-projet-fake-news-trading.md,
+le modèle maison fine-tuné (cf. doc/V0/fiche-projet.md,
 doc/userstories_évaluateur.md). Fournisseur : Claude (cf. fakenews.llm)."""
 
 import logging

@@ -104,7 +104,7 @@ Chaque signal (US-01 à US-07) exprime sa `valeur` sur cette même échelle 0-10
 - La réponse est parsée en un format structuré (score + justification) et associée à l'article.
 - Chaque appel LLM est journalisé (article, score, justification, date) pour constituer le futur dataset d'entraînement.
 - Ce signal est clairement identifié comme provisoire/bootstrap dans la sortie, distinct des signaux 1 à 6.
-- Le nombre d'appels LLM par run hebdomadaire est plafonné (valeur configurable, `LLM_PLAFOND_EVALUATEUR`), avec priorisation par cluster d'événement (le plus corroboré/le plus viral d'abord) si le volume collecté dépasse le plafond — condition nécessaire pour que le budget (cf. `fiche-projet-fake-news-trading.md`) reste prévisible malgré une collecte de volume non plafonné (US-01 scraper). La priorisation par cluster n'est pas encore possible (dépend du clustering de US-02 évaluateur, non implémenté) : en attendant, les articles sont traités dans l'ordre rencontré jusqu'au plafond — simplification assumée, pas un oubli.
+- Le nombre d'appels LLM par run hebdomadaire est plafonné (valeur configurable, `LLM_PLAFOND_EVALUATEUR`), avec priorisation par cluster d'événement (le plus corroboré/le plus viral d'abord) si le volume collecté dépasse le plafond — condition nécessaire pour que le budget (cf. `fiche-projet.md`) reste prévisible malgré une collecte de volume non plafonné (US-01 scraper). La priorisation par cluster n'est pas encore possible (dépend du clustering de US-02 évaluateur, non implémenté) : en attendant, les articles sont traités dans l'ordre rencontré jusqu'au plafond — simplification assumée, pas un oubli.
 
 ---
 
@@ -112,7 +112,7 @@ Chaque signal (US-01 à US-07) exprime sa `valeur` sur cette même échelle 0-10
 
 **En tant qu'** évaluateur automatique,
 **je veux** agréger les sous-scores des signaux US-01 à US-07 en un score de suspicion unique 0-100,
-**afin de** fournir une décision exploitable en sortie (rapport hebdomadaire), plutôt que 7 signaux séparés à interpréter manuellement. Ce score pourra plus tard servir de signal d'entrée à un futur système de trading, mais celui-ci n'est pas conçu ici (cf. non-objectif actuel dans `architecture.md`).
+**afin de** fournir une décision exploitable en sortie (rapport hebdomadaire), plutôt que 7 signaux séparés à interpréter manuellement. Ce score sert à la recherche sur la désinformation ; il n'est pas un signal de trading (cf. hors périmètre dans `architecture.md`).
 
 **Critères d'acceptation :**
 - Chaque signal (US-01 à US-07) contribue au score final avec un poids fixé manuellement/empiriquement. Poids de départ (arbitraires, à recalibrer une fois qu'un corpus labellisé est disponible — cf. US-01 contextualiseur) : reputation 1, corroboration 1, fact_checking 1.5, source_primaire 1.5, style 0.5, decalage_viral 1, llm_bootstrap 1.5 — le bootstrap et les deux signaux à ancrage factuel externe (fact-check, source primaire) pèsent davantage que les signaux purement stylistiques ou de forme.
@@ -121,13 +121,13 @@ Chaque signal (US-01 à US-07) exprime sa `valeur` sur cette même échelle 0-10
 - Si tous les signaux sont exclus pour un article (dénominateur nul — cas limite mais possible), aucun score n'est calculé : l'article est marqué `score_final: non_évaluable` plutôt que de produire une division par zéro ou un score par défaut trompeur. Un article `non_évaluable` n'apparaît pas dans les listes triées par score (US-01 frontend) et ne déclenche pas le contextualiseur (sous le seuil par construction).
 - Le signal bootstrap (US-07, LLM en ligne) a un poids explicitement paramétrable et distinct des signaux 1 à 6 (cf. valeurs de départ ci-dessus). Le remplacement de US-07 par le modèle maison fine-tuné, et tout ajustement de poids qui l'accompagnerait, est hors périmètre pour l'instant (cf. section "Hors périmètre") — les poids restent fixes tant que ce chantier n'est pas engagé.
 - La sortie trace la contribution de chaque signal individuel au score final (poids appliqué + valeur), pas seulement le score agrégé, pour garder l'explicabilité déjà exigée signal par signal.
-- Le score final et son détail sont associés à l'article dans le même format de sortie que les signaux individuels (persistance/journalisation), pour être consommés par le rapport hebdomadaire et, plus tard, par un éventuel futur système de trading.
+- Le score final et son détail sont associés à l'article dans le même format de sortie que les signaux individuels (persistance/journalisation), pour être consommés par le rapport et par le frontend.
 
 ---
 
 ## Note — Correspondance labels datasets publics ↔ échelle 0-100 (pour le futur fine-tuning)
 
-Point de départ à ajuster empiriquement, pas une valeur figée — nécessaire avant de fusionner les labels bootstrap (US-07) avec les datasets publics pour le fine-tuning (cf. `fiche-projet-fake-news-trading.md`) :
+Point de départ à ajuster empiriquement, pas une valeur figée — nécessaire avant de fusionner les labels bootstrap (US-07) avec les datasets publics pour le fine-tuning (cf. `fiche-projet.md`) :
 
 | Dataset | Label d'origine | Score de suspicion 0-100 (proposé) |
 |---|---|---|

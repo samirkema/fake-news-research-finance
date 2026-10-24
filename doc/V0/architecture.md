@@ -1,4 +1,4 @@
-# Architecture — Projet Fake News & Trading Algorithmique
+# Architecture — Projet Fake News Research for Finance
 
 ## Vue d'ensemble
 
@@ -26,7 +26,7 @@ Scraper  -->  Évaluateur  -->  Contextualiseur  -->  Frontend
 **Choix retenu :** un pipeline séquentiel classique (4 étapes qui lisent/écrivent dans un stockage partagé), pas une architecture événementielle avec services séparés communiquant en HTTP/queues.
 
 **Pourquoi :**
-- Le rythme du projet est un scan hebdomadaire (cf. `fiche-projet-fake-news-trading.md`), pas du temps réel : rien ne justifie l'overhead d'une architecture événementielle.
+- Le rythme du projet est un scan hebdomadaire (cf. `fiche-projet.md`), pas du temps réel : rien ne justifie l'overhead d'une architecture événementielle.
 - Projet solo en phase prototype (budget 0-20€/mois) : la complexité opérationnelle (déploiement, supervision de plusieurs services) n'a pas de contrepartie utile ici.
 - Un pipeline batch reste simple à faire tourner, déboguer et faire évoluer seul, tout en gardant les 4 blocs découplés.
 
@@ -104,7 +104,7 @@ Chaque signal (US-01 à US-06) et l'agrégateur (US-08) sont des modules indépe
 
 `preuve_id` est une chaîne stable par signal : le nom du signal seul quand la "preuve" est le jugement propre de l'évaluateur (réputation, style, LLM bootstrap), complétée par une référence externe vérifiable quand elle existe (URL ClaimReview pour le fact-checking, numéro d'accession SEC EDGAR pour la source primaire, identifiant de cluster GDELT/similarité pour la corroboration et le décalage viral). C'est ce `preuve_id` que le contextualiseur (US-02) doit citer pour qu'un item de `faits_traces` soit accepté — cf. `userstories_contextualiseur.md`.
 
-**Pourquoi :** le projet vise explicitement à remplacer le LLM bootstrap par un modèle maison fine-tuné (BERT/RoBERTa/DistilBERT, cf. `fiche-projet-fake-news-trading.md`). Geler l'interface permet de faire ce remplacement comme un simple swap d'implémentation du module `llm_bootstrap`, sans toucher au reste de l'évaluateur ni au contrat de sortie consommé par le contextualiseur et le frontend. Ce remplacement (et l'ajustement des poids qui pourrait l'accompagner) reste hors périmètre pour l'instant — cf. `userstories_évaluateur.md`.
+**Pourquoi :** le projet vise explicitement à remplacer le LLM bootstrap par un modèle maison fine-tuné (BERT/RoBERTa/DistilBERT, cf. `fiche-projet.md`). Geler l'interface permet de faire ce remplacement comme un simple swap d'implémentation du module `llm_bootstrap`, sans toucher au reste de l'évaluateur ni au contrat de sortie consommé par le contextualiseur et le frontend. Ce remplacement (et l'ajustement des poids qui pourrait l'accompagner) reste hors périmètre pour l'instant — cf. `userstories_évaluateur.md`.
 
 ---
 
@@ -178,7 +178,7 @@ réellement opposables avant la mise en service (cf. `doc/audit/`, phase 14).
 ## Ce que cette architecture NE couvre pas (pour rappel)
 
 - Le fine-tuning du modèle maison et son intégration comme module `llm_bootstrap` alternatif — prévu mais pas détaillé ici, ni l'ajustement des poids US-08 qui pourrait en découler (cf. `userstories_évaluateur.md`, explicitement hors périmètre pour l'instant).
-- **Non-objectif actuel : le module de scoring d'impact marché (yfinance) et les stratégies de trading.** Ce n'est pas un bloc "pas encore dessiné" dans le même schéma : le pipeline hebdomadaire batch décrit ici est structurellement incompatible avec une exécution de trading réactive (l'impact d'une fake news sur un marché se joue en minutes/heures, pas en semaines). Le score de suspicion produit ici pourra servir de signal d'entrée à un futur système de trading, mais celui-ci nécessitera sa propre architecture temps réel/événementielle, à concevoir séparément une fois le scoring validé — pas une extension de ce pipeline.
+- **Hors périmètre : toute stratégie ou exécution de trading** (décision du 2026-10-24, cf. `fiche-projet.md`). Le projet est un outil de recherche sur la désinformation ; le score de suspicion n'est pas un signal de trading. Une étude de l'impact des fake news sur les prix (yfinance) reste possible comme analyse a posteriori, séparée de ce pipeline.
 - Le passage à une architecture multi-services (au-delà de Vercel + GitHub Actions + Supabase) — à envisager seulement si un besoin de concurrence, de volumétrie ou de scaling dépassant le tier gratuit Supabase apparaît.
 - **RGPD et droit de republication du contenu collecté** (articles protégés, bylines identifiables) : non traités en phase prototype. À traiter avant toute ouverture d'accès public non protégée — c'est une des raisons pour lesquelles l'accès hébergé reste derrière une authentification minimale tant que ce point n'est pas clos (cf. `userstories_frontend.md` US-04).
 - **Politique de rétention/purge du stockage** : non définie en phase prototype (volumes attendus faibles vu le budget et l'usage mono-utilisateur). À revisiter si le volume hebdomadaire cumulé devient significatif.

@@ -12,7 +12,7 @@ Périmètre : la génération d'une explication factuelle pour les articles iden
 
 **Critères d'acceptation :**
 - Le seuil est configurable sans modification du code.
-- Le seuil par défaut est fixé à 60/100, un point de départ arbitraire à recalibrer une fois qu'un corpus labellisé est disponible (LIAR/FakeNewsNet/ISOT, cf. `fiche-projet-fake-news-trading.md`) — la méthode de calibration future consiste à choisir la valeur qui maximise le F1 du score composite (US-08 évaluateur) sur un jeu de validation retenu.
+- Le seuil par défaut est fixé à 60/100, un point de départ arbitraire à recalibrer une fois qu'un corpus labellisé est disponible (LIAR/FakeNewsNet/ISOT, cf. `fiche-projet.md`) — la méthode de calibration future consiste à choisir la valeur qui maximise le F1 du score composite (US-08 évaluateur) sur un jeu de validation retenu.
 - Les articles sous le seuil ne génèrent aucun appel au contextualiseur. Un article `non_évaluable` (cf. US-08 évaluateur, tous signaux exclus) est traité comme sous le seuil.
 - Le nombre d'appels LLM du contextualiseur par run hebdomadaire est plafonné (valeur configurable, distincte du plafond US-07 évaluateur — un appel d'explication coûte plus cher qu'un appel de scoring court, cf. `architecture.md`). Si le nombre d'articles au-dessus du seuil dépasse le plafond, priorisation par score de suspicion décroissant.
 - Chaque run journalise le nombre d'articles traités vs. le nombre total scoré par l'évaluateur — donne une mesure réelle du taux de suspicion, sur le même principe que le comptage par source du scraper (US-06 scraper).

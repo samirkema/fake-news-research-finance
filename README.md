@@ -1,8 +1,10 @@
-# Fake News & Trading Algorithmique
+# Fake News Research for Finance
 
-[![CI](https://github.com/samirkema/fake-news-trading/actions/workflows/ci.yml/badge.svg)](https://github.com/samirkema/fake-news-trading/actions/workflows/ci.yml)
+[![CI](https://github.com/samirkema/fake-news-research-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/samirkema/fake-news-research-finance/actions/workflows/ci.yml)
 
-Bibliothèque IA qui détecte les fake news et attribue un score de suspicion (0 = fiable, 100 = très suspect) à des articles collectés chaque semaine (RSS + Reddit), avant d'envisager un usage comme signal pour des stratégies de trading algorithmique.
+Projet de recherche non commercial sur la désinformation, en particulier celle qui touche les marchés financiers. Il collecte chaque jour des articles et des posts publics (RSS + Reddit), leur attribue un score de suspicion (0 = fiable, 100 = très suspect) et explique, sources à l'appui, pourquoi un contenu paraît trompeur.
+
+Le projet étudie et documente la désinformation : il ne produit **aucun conseil d'investissement**, n'exécute **aucune stratégie de trading** et ne revend aucune donnée.
 
 > ⚠️ Prototype en développement actif. Les scores et mises en contexte produits sont générés automatiquement et ne constituent pas un verdict éditorial définitif — voir [doc/V0/architecture.md](doc/V0/architecture.md) pour les limites assumées.
 
@@ -151,7 +153,7 @@ Détails : [doc/V0/architecture.md](doc/V0/architecture.md), section "Topologie 
 
 ## Documentation
 
-- [doc/V0/fiche-projet-fake-news-trading.md](doc/V0/fiche-projet-fake-news-trading.md) — objectifs et décisions du projet
+- [doc/V0/fiche-projet.md](doc/V0/fiche-projet.md) — objectifs et décisions du projet (recentré sur la recherche le 2026-10-24)
 - [doc/V0/architecture.md](doc/V0/architecture.md) — décisions d'architecture et leurs justifications
 - [doc/V0/plan_implementation.md](doc/V0/plan_implementation.md) — séquencement et état d'avancement
 - [doc/V0/userstories_scraper.md](doc/V0/userstories_scraper.md), [doc/V0/userstories_évaluateur.md](doc/V0/userstories_évaluateur.md), [doc/V0/userstories_contextualiseur.md](doc/V0/userstories_contextualiseur.md), [doc/V0/userstories_frontend.md](doc/V0/userstories_frontend.md) — user stories détaillées par bloc

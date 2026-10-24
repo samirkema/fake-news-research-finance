@@ -9,7 +9,7 @@ import re
 import anthropic
 
 # Haiku par défaut pour les deux usages (scoring court, génération plus longue) —
-# budget serré du projet (cf. doc/fiche-projet-fake-news-trading.md). Surchageable
+# budget serré du projet (cf. doc/V0/fiche-projet.md). Surchageable
 # via LLM_MODELE si un besoin de qualité supérieure apparaît pour la génération.
 MODELE_PAR_DEFAUT = os.environ.get("LLM_MODELE", "claude-haiku-4-5-20251001")
 

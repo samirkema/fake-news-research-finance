@@ -1,7 +1,9 @@
-# Fiche résumé — Projet Fake News & Trading Algorithmique
+# Fiche résumé — Projet Fake News Research for Finance
 
 ## Objectif du projet
-Bibliothèque IA détectant les fake news et quantifiant leur impact sur le monde(notament les marchés financiers), puis stratégies de trading algorithmique utilisant ces signaux d'impact pour automatiser l'analyse de marché et l'exécution.
+Projet de recherche non commercial : détecter les fake news, expliquer pourquoi elles sont trompeuses et étudier leur diffusion et leur impact informationnel, en particulier sur les marchés financiers.
+
+> **Recentrage du 2026-10-24.** L'objectif initial prévoyait ensuite des stratégies de trading algorithmique fondées sur ces signaux. Il est abandonné : le projet reste un outil de recherche sur la désinformation, sans conseil d'investissement, sans exécution de trading et sans usage commercial des données collectées.
 
 ## Décisions prises
 
@@ -11,7 +13,7 @@ Bibliothèque IA détectant les fake news et quantifiant leur impact sur le mond
   1. Utiliser un LLM en ligne au début pour labelliser rapidement un premier corpus.
   2. Fine-tuner un modèle léger (BERT/RoBERTa/DistilBERT) sur ces labels + datasets publics (LIAR, FakeNewsNet, ISOT).
   3. Le modèle "maison" tourne ensuite en production sans coût récurrent par appel ; le LLM externe ne sert que ponctuellement (labellisation, cas ambigus).
-- **Scoring et trading = deux phases distinctes** : la phase actuelle produit un score de suspicion hebdomadaire (bibliothèque de détection), sans aucun mécanisme d'exécution de trading. Automatiser l'analyse de marché et l'exécution nécessitera une architecture temps réel séparée, à concevoir seulement une fois le scoring validé — ce n'est pas une extension du pipeline hebdomadaire actuel (cf. `doc/architecture.md`).
+- **Pas de trading** (décision du 2026-10-24) : le projet produit un score de suspicion et une mise en contexte, à des fins de recherche. Aucun mécanisme d'exécution de trading n'est prévu, ni maintenant ni plus tard.
 
 ## État actuel du code
 
@@ -25,7 +27,7 @@ on part de zéro
 | GDELT Project | À intégrer | Gratuit |
 | Reddit API | À intégrer | Gratuit (tier de base) |
 | Alpha Vantage (news sentiment + données marché) | Optionnel, non câblé à un bloc du pipeline actuel (cf. `doc/architecture.md`) | Gratuit en tier de base |
-| yfinance (données marché pour scoring d'impact) | Non-objectif actuel du pipeline détection (incompatible avec le batch hebdomadaire, cf. `doc/architecture.md`) — reste dans la feuille de route long terme du projet, pas de ce pipeline | Gratuit |
+| yfinance (données marché pour étudier l'impact) | Non câblé : seulement envisagé pour la recherche sur l'impact des fake news, jamais pour trader (cf. `doc/architecture.md`) | Gratuit |
 | Datasets ML : LIAR, FakeNewsNet, ISOT | À utiliser pour entraînement | Gratuit |
 
 ## Budget indicatif estimé
@@ -40,6 +42,5 @@ on part de zéro
 1. Ajouter un module Reddit au script (r/wallstreetbets, r/stocks, r/investing pour la finance ; r/worldnews, r/news pour l'actualité générale) en parallèle du RSS
 2. Construire un premier dataset labellisé (LLM en ligne pour bootstrap + datasets publics)
 3. Fine-tuner un modèle léger (BERT/RoBERTa) sur ce dataset
-4. Concevoir, séparément du pipeline détection actuel, le module de scoring d'impact marché (corrélation news/mouvement de prix via yfinance) — nécessite sa propre architecture temps réel, pas une extension du pipeline batch hebdomadaire (cf. `doc/architecture.md`)
-5. Backtesting des stratégies de trading (backtrader/vectorbt) avant toute exécution réelle
-6. Automatiser le rapport hebdomadaire via GitHub Actions (workflow planifié, cf. `doc/architecture.md` et `doc/plan_implementation.md`)
+4. Étudier, séparément du pipeline de détection, l'impact informationnel des fake news sur un panier restreint d'actifs (corrélation entre diffusion et mouvements de prix, via yfinance) — outil d'analyse a posteriori, jamais de recommandation ni d'exécution (cf. `doc/V1/2.1-liste-actifs-et-annotation.md`)
+5. Automatiser le rapport hebdomadaire via GitHub Actions (workflow planifié, cf. `doc/architecture.md` et `doc/plan_implementation.md`)
