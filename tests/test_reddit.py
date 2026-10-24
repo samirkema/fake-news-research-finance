@@ -53,3 +53,18 @@ def test_normaliser_submission_url_canonique_ignore_les_traqueurs():
         _fake_submission(permalink="/r/stocks/comments/abc123/un_titre/?utm_source=share"), "stocks"
     )
     assert resultat["url_canonique"] == "https://www.reddit.com/r/stocks/comments/abc123/un_titre/"
+
+
+def test_creer_client_user_agent_vide_retombe_sur_le_defaut(monkeypatch):
+    # Un secret CI non défini arrive comme variable vide : le user-agent doit
+    # retomber sur le défaut, sinon PRAW produit un en-tête invalide.
+    from unittest.mock import patch
+
+    from fakenews.scraper.reddit import creer_client
+
+    monkeypatch.setenv("REDDIT_CLIENT_ID", "id")
+    monkeypatch.setenv("REDDIT_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("REDDIT_USER_AGENT", "")
+    with patch("fakenews.scraper.reddit.praw.Reddit") as reddit:
+        creer_client()
+    assert reddit.call_args.kwargs["user_agent"].startswith("fakenews-scraper/")
