@@ -49,6 +49,8 @@ jobs:
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          # Optionnel : sans elle, YouTube n'est simplement pas collecté.
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
 
       # Collecte des articles proposés par les utilisateurs et acceptés par un
       # contributeur (US-04 crowdsourcing, cf. doc/V3/). AVANT l'évaluateur, pour
