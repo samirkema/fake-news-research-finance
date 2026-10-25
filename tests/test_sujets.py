@@ -282,4 +282,4 @@ def test_page_des_fake_news_du_sujet(client, db_session, mode_heberge):
     page = client.get(f"/sujets/{sujet.id}/fake-news").text
     assert page.index("Très suspect") < page.index("Peu suspect")
     assert "analyse automatique" in page
-    assert "Voir les 2 fake news" in client.get(f"/sujets/{sujet.id}").text
+    assert "Voir les 2 news évaluées liées à ce sujet" in client.get(f"/sujets/{sujet.id}").text
