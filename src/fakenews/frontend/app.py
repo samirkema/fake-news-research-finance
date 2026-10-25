@@ -1796,7 +1796,7 @@ def fake_news_du_sujet(
     compte: CompteCourant = Depends(compte_courant),
 ):
     """Articles rattachés au sujet, à la main par un contributeur ou
-    automatiquement par l'évaluateur, du plus suspect au moins suspect."""
+    automatiquement par l'évaluateur, du plus récent au plus ancien."""
     sujet = session.get(Sujet, sujet_id)
     if sujet is None or (sujet.retire_le is not None and compte.role != "superadmin"):
         raise HTTPException(status_code=404, detail="Sujet introuvable")
@@ -1805,7 +1805,7 @@ def fake_news_du_sujet(
         .join(RattachementSujet, RattachementSujet.article_id == Article.id)
         .outerjoin(Score, Score.article_id == Article.id)
         .where(RattachementSujet.sujet_id == sujet_id)
-        .order_by(Score.score_final.desc().nulls_last(), Article.date_publication.desc())
+        .order_by(Article.date_publication.desc())
     ).all()
     return templates.TemplateResponse(
         request, "sujet_fake_news.html", _contexte(compte, sujet=sujet, articles=articles)
