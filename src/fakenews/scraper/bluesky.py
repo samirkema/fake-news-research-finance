@@ -5,7 +5,6 @@ journalisé et ignoré, jamais bloquant (cf. doc/V0/architecture.md, dégrader
 jamais bloquer).
 """
 
-import json
 import logging
 from datetime import datetime
 from urllib.parse import urlencode
@@ -13,8 +12,8 @@ from urllib.parse import urlencode
 from sqlalchemy.orm import Session
 
 from fakenews.normalisation import canonicaliser_url, hacher_contenu
-from fakenews.scraper.persistance import enregistrer_ou_mettre_a_jour
-from fakenews.scraper.rss import _telecharger, titre_depuis_texte
+from fakenews.scraper.rss import titre_depuis_texte
+from fakenews.scraper.sociaux import _json, persister
 from fakenews.scraper.sources_bluesky import NB_POSTS_PAR_RECHERCHE, RECHERCHES
 
 logger = logging.getLogger(__name__)
@@ -59,35 +58,8 @@ def collecter_bluesky(session: Session) -> dict:
     bilan = {}
     for recherche in RECHERCHES:
         url = f"{URL_RECHERCHE}?{urlencode({'q': recherche, 'limit': NB_POSTS_PAR_RECHERCHE, 'sort': 'latest'})}"
-        brut = _telecharger(url)
-        try:
-            posts = json.loads(brut)["posts"] if brut is not None else None
-        except (ValueError, KeyError, TypeError) as exc:
-            logger.warning("recherche Bluesky illisible: %r (%s)", recherche, type(exc).__name__)
-            posts = None
-        if posts is None:
-            bilan[recherche] = {"statut": "indisponible", "ajoutes": 0, "mis_a_jour": 0, "ignores": 0}
-            continue
-
-        compteurs = {"ajoutes": 0, "mis_a_jour": 0, "ignores": 0}
-        for post in posts:
-            try:
-                article = normaliser_post(post, recherche)
-                if article is None:
-                    compteurs["ignores"] += 1
-                    continue
-                with session.begin_nested():
-                    resultat = enregistrer_ou_mettre_a_jour(session, article)
-            except Exception as exc:
-                logger.warning("post Bluesky ignoré (%r): %s", recherche, type(exc).__name__)
-                compteurs["ignores"] += 1
-                continue
-            if resultat == "ajoute":
-                compteurs["ajoutes"] += 1
-            elif resultat == "mis_a_jour":
-                compteurs["mis_a_jour"] += 1
-
-        session.commit()
-        bilan[recherche] = {"statut": "ok", **compteurs}
+        reponse = _json(url)
+        posts = reponse.get("posts") if isinstance(reponse, dict) else None
+        bilan[recherche] = persister(session, posts, lambda p, r=recherche: normaliser_post(p, r))
         logger.info("Bluesky %r: %s", recherche, bilan[recherche])
     return bilan

@@ -100,15 +100,18 @@ class _RedirectionsHttp(urllib.request.HTTPRedirectHandler):
 _OUVREUR = urllib.request.build_opener(_RedirectionsHttp)
 
 
-def _telecharger(url: str, taille_max: int = TAILLE_MAX_PAR_DEFAUT) -> bytes | None:
+def _telecharger(url: str, taille_max: int = TAILLE_MAX_PAR_DEFAUT, entetes: dict | None = None) -> bytes | None:
     """Récupère le contenu brut d'une URL avec un timeout explicite (cf. doc/architecture.md,
     "dégrader jamais bloquer" — un flux qui traîne ne doit pas geler tout le run). Un
     User-Agent explicite est nécessaire : plusieurs flux renvoient 403 sur le User-Agent
     par défaut d'urllib.
 
     La lecture est bornée : `read(n)` s'arrête à n octets quoi qu'annonce le
-    serveur. Un `Content-Length` mensonger ou absent ne change donc rien."""
-    requete = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    serveur. Un `Content-Length` mensonger ou absent ne change donc rien.
+
+    `entetes` porte notamment une clé d'API : dans un en-tête, elle n'apparaît
+    pas dans l'URL que l'avertissement d'échec journalise."""
+    requete = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(entetes or {})})
     try:
         with _OUVREUR.open(requete, timeout=TIMEOUT_SECONDES) as reponse:
             return reponse.read(taille_max)
