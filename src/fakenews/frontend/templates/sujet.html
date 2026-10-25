@@ -62,9 +62,9 @@
 </section>
 
 <section id="articles">
-  <h3>Fake news liées</h3>
+  <h3>News évaluées liées</h3>
   {% if nb_articles %}
-  <p><a href="/sujets/{{ sujet.id }}/fake-news">Voir les {{ nb_articles }} fake news liées à ce sujet →</a></p>
+  <p><a href="/sujets/{{ sujet.id }}/fake-news">Voir les {{ nb_articles }} news évaluées liées à ce sujet →</a></p>
   {% else %}
   <p>Aucun article rattaché pour l'instant. L'analyse automatique en ajoutera au prochain passage du pipeline.{% if peut_decider %} Vous pouvez aussi, depuis la fiche d'un article, utiliser « Rattacher à un sujet ».{% endif %}</p>
   {% endif %}
