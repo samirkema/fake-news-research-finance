@@ -151,7 +151,9 @@ def test_rattacher_un_article(client, db_session, mode_heberge):
         )
         assert r.status_code == 303
     assert len(db_session.execute(select(RattachementSujet)).scalars().all()) == 1
-    assert article.titre in client.get(f"/sujets/{sujet.id}").text
+    page_sujet = client.get(f"/sujets/{sujet.id}").text
+    assert article.titre not in page_sujet and f"/sujets/{sujet.id}/fake-news" in page_sujet
+    assert article.titre in client.get(f"/sujets/{sujet.id}/fake-news").text
     assert sujet.titre in client.get(chemin).text
 
 
@@ -260,3 +262,24 @@ def test_photo_sans_csrf_refusee(client, db_session, mode_heberge):
     )
     assert r.status_code in (400, 403)
     assert db_session.execute(select(SujetImage)).first() is None
+
+
+def test_page_des_fake_news_du_sujet(client, db_session, mode_heberge):
+    """Page séparée, du plus suspect au moins suspect ; un rattachement de
+    l'évaluateur est présenté comme « analyse automatique »."""
+    from fakenews.models import Score
+
+    mode_heberge("secret")
+    sujet = _sujet(db_session)
+    peu, tres = _article(db_session, "peu"), _article(db_session, "tres")
+    peu.titre, tres.titre = "Peu suspect", "Très suspect"
+    for article, valeur in ((peu, 10.0), (tres, 90.0)):
+        db_session.execute(select(Score).where(Score.article_id == article.id)).scalar_one().score_final = valeur
+        db_session.add(RattachementSujet(sujet_id=sujet.id, article_id=article.id, ajoute_par="evaluateur"))
+    db_session.flush()
+    _connecter(client, db_session, "alice")
+
+    page = client.get(f"/sujets/{sujet.id}/fake-news").text
+    assert page.index("Très suspect") < page.index("Peu suspect")
+    assert "analyse automatique" in page
+    assert "Voir les 2 fake news" in client.get(f"/sujets/{sujet.id}").text

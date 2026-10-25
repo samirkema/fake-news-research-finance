@@ -23,6 +23,7 @@ from fakenews.evaluateur.reputation import evaluer_reputation
 from fakenews.evaluateur.score import POIDS_PAR_DEFAUT, calculer_score_composite
 from fakenews.evaluateur.source_primaire import evaluer_source_primaire
 from fakenews.evaluateur.style import evaluer_style
+from fakenews.evaluateur.sujets import rattacher_aux_sujets
 from fakenews.llm import creer_client
 from fakenews.models import Article, Score
 
@@ -86,20 +87,15 @@ def evaluer_articles_non_scores(
             select(Article)
             .outerjoin(Score, Score.article_id == Article.id)
             .where(Score.id.is_(None))
-            # PREMIER COLLECTÉ, PREMIER SERVI. Le tri précédent prenait les plus
-            # récents d'abord, au motif qu'un backlog qui déborde doit livrer
-            # l'actualité de la semaine — mais il ne « reportait » rien du tout :
-            # au run suivant, les nouveautés collectées entre-temps repassaient
-            # devant, et le reliquat était affamé DÉFINITIVEMENT. Reproduit :
-            # un article dépassé une fois n'était jamais noté, donc jamais visible
-            # dans le frontend, qui joint `Score` en jointure interne
-            # (cf. audit phase 14, F3).
-            #
-            # `date_collecte` et non `date_publication` : c'est l'ordre d'ARRIVÉE
-            # dans le système qui doit être équitable. Un article ancien proposé
-            # aujourd'hui par un contributeur n'a pas à passer après tout le
-            # corpus de la semaine.
-            .order_by(Article.date_collecte, Article.id)
+            # TIRAGE AU SORT parmi les articles non notés (décision du 2026-10-26) :
+            # la collecte dépasse désormais le plafond (~500 éléments par run pour
+            # 300 notés), et un échantillon aléatoire mélange les sources au lieu
+            # de servir d'abord celle qui arrive la première dans le run.
+            # Contrepartie assumée : un article peut n'être jamais tiré (ce que
+            # l'ordre « premier collecté, premier servi » empêchait, cf. audit
+            # phase 14, F3) ; le reliquat non noté grossit tant que la collecte
+            # dépasse le plafond.
+            .order_by(func.random())
             .limit(plafond_articles)
         )
         .scalars()
@@ -112,7 +108,7 @@ def evaluer_articles_non_scores(
         # EVALUATEUR_PLAFOND_ARTICLES ou réduire la collecte.
         logger.warning(
             "%d article(s) non scoré(s) pour un plafond de %d — %d repris au prochain "
-            "run (les plus anciennement collectés d'abord). Si ce nombre grandit d'un "
+            "run (tirés au sort). Si ce nombre grandit d'un "
             "run à l'autre, l'ingestion dépasse la capacité : relever le plafond ou "
             "réduire la collecte.",
             restants, plafond_articles, restants - len(articles),
@@ -186,6 +182,8 @@ def evaluer_articles_non_scores(
         client_sec_edgar.close()
 
     nb_persistes += _commiter_le_lot(session, lot)
+    if client_llm is not None:
+        rattacher_aux_sujets(session, articles, client_llm)
     logger.info(
         "%d/%d article(s) évalué(s) et persisté(s), %d appel(s) LLM bootstrap",
         nb_persistes, len(articles), nb_appels_llm,
