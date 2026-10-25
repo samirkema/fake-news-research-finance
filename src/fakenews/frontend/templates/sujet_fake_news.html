@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/sujets/{{ sujet.id }}">← Retour au sujet « {{ sujet.titre }} »</a></p>
 <h2>News évaluées liées à « {{ sujet.titre }} »</h2>
-<p class="aide">Du plus suspect au moins suspect. Score de 0 (fiable) à 100 (très suspect).</p>
+<p class="aide">Du plus récent au plus ancien. Score de 0 (fiable) à 100 (très suspect).</p>
 
 {% if articles %}
 <table>

@@ -11,7 +11,7 @@ import logging
 import os
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from fakenews.budget_llm import activer_budget
@@ -71,6 +71,27 @@ def _commiter_le_lot(session: Session, identifiants: list) -> int:
         return 0
 
 
+def supprimer_non_notes(session: Session) -> int:
+    """Supprime les articles que ce run n'a pas notés (décision du 2026-10-26) :
+    la collecte dépasse le plafond, et un article non tiré ne sera jamais
+    analysé. Garder ce reliquat ne servait qu'à grossir la base.
+
+    Les articles proposés par les utilisateurs sont épargnés : ils passent en
+    tête du tirage, et un humain a décidé qu'ils méritaient une analyse. Un
+    article ainsi supprimé peut revenir au run suivant si sa source le publie
+    encore : il retente alors sa chance au tirage."""
+    nb = session.execute(
+        delete(Article)
+        .where(
+            Article.plateforme != "proposition",
+            ~select(Score.id).where(Score.article_id == Article.id).exists(),
+        )
+    ).rowcount
+    session.commit()
+    logger.info("%d article(s) non noté(s) supprimé(s).", nb)
+    return nb
+
+
 def evaluer_articles_non_scores(
     session: Session,
     plafond_llm: int = PLAFOND_APPELS_LLM_PAR_DEFAUT,
@@ -88,30 +109,23 @@ def evaluer_articles_non_scores(
             .outerjoin(Score, Score.article_id == Article.id)
             .where(Score.id.is_(None))
             # TIRAGE AU SORT parmi les articles non notés (décision du 2026-10-26) :
-            # la collecte dépasse désormais le plafond (~500 éléments par run pour
-            # 300 notés), et un échantillon aléatoire mélange les sources au lieu
-            # de servir d'abord celle qui arrive la première dans le run.
-            # Contrepartie assumée : un article peut n'être jamais tiré (ce que
-            # l'ordre « premier collecté, premier servi » empêchait, cf. audit
-            # phase 14, F3) ; le reliquat non noté grossit tant que la collecte
-            # dépasse le plafond.
-            .order_by(func.random())
+            # la collecte dépasse le plafond (~500 éléments par run pour 300
+            # notés), et un échantillon aléatoire mélange les sources au lieu de
+            # servir d'abord celle qui arrive la première. Les non tirés sont
+            # ensuite supprimés (cf. `supprimer_non_notes`).
+            # Les articles proposés par les utilisateurs (et acceptés par un
+            # contributeur) passent toujours avant le tirage.
+            .order_by((Article.plateforme == "proposition").desc(), func.random())
             .limit(plafond_articles)
         )
         .scalars()
         .all()
     )
     if restants > len(articles):
-        # Un reliquat ponctuel se résorbe au run suivant. Un reliquat qui grossit
-        # d'un run à l'autre est un déficit STRUCTUREL — l'ingestion dépasse la
-        # capacité — et aucun ordre de tri ne le règle : il faut relever
-        # EVALUATEUR_PLAFOND_ARTICLES ou réduire la collecte.
-        logger.warning(
-            "%d article(s) non scoré(s) pour un plafond de %d — %d repris au prochain "
-            "run (tirés au sort). Si ce nombre grandit d'un "
-            "run à l'autre, l'ingestion dépasse la capacité : relever le plafond ou "
-            "réduire la collecte.",
-            restants, plafond_articles, restants - len(articles),
+        logger.info(
+            "%d article(s) non noté(s) pour un plafond de %d : %d tirés au sort, les "
+            "autres seront supprimés en fin de run.",
+            restants, plafond_articles, len(articles),
         )
 
     # Client créé une seule fois pour tout le run (pas par article) : si les
@@ -184,6 +198,7 @@ def evaluer_articles_non_scores(
     nb_persistes += _commiter_le_lot(session, lot)
     if client_llm is not None:
         rattacher_aux_sujets(session, articles, client_llm)
+    supprimer_non_notes(session)
     logger.info(
         "%d/%d article(s) évalué(s) et persisté(s), %d appel(s) LLM bootstrap",
         nb_persistes, len(articles), nb_appels_llm,

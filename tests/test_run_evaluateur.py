@@ -149,3 +149,33 @@ def test_article_deja_score_n_est_pas_re_evalue(db_session):
     scores = db_session.execute(select(Score).where(Score.article_id == article.id)).scalars().all()
     assert len(scores) == 1
     assert scores[0].id == premier_score_id
+
+
+def test_les_non_tires_sont_supprimes_sauf_les_propositions(db_session, monkeypatch):
+    """Plafond de 2 sur 4 articles : les 2 non tirés disparaissent ; une
+    proposition passe en tête du tirage, et même non notée elle serait gardée."""
+    from fakenews.evaluateur import run_evaluateur
+
+    monkeypatch.setattr(run_evaluateur, "rattacher_aux_sujets", lambda *a: 0)
+    rss = [_inserer_article(db_session, "bbc.com", f"tirage-{i}") for i in range(3)]
+    proposee = _inserer_article(db_session, "exemple.test", "proposee")
+    proposee.plateforme = "proposition"
+    db_session.flush()
+
+    assert evaluer_articles_non_scores(db_session, plafond_llm=0, plafond_articles=2) == 2
+
+    restants = db_session.execute(select(Article)).scalars().all()
+    assert len(restants) == 2 and proposee in restants
+    assert all(db_session.execute(select(Score).where(Score.article_id == a.id)).first() for a in restants)
+    assert sum(a in restants for a in rss) == 1
+
+
+def test_une_proposition_non_notee_n_est_pas_supprimee(db_session):
+    from fakenews.evaluateur.run_evaluateur import supprimer_non_notes
+
+    proposee = _inserer_article(db_session, "exemple.test", "garde")
+    proposee.plateforme = "proposition"
+    _inserer_article(db_session, "bbc.com", "jete")
+    db_session.flush()
+    assert supprimer_non_notes(db_session) == 1
+    assert db_session.execute(select(Article)).scalars().all() == [proposee]

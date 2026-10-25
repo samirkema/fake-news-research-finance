@@ -2,6 +2,8 @@
 les comptes connectés, analyses réservées aux contributeurs, retrait par le
 superadmin (masquage)."""
 
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -265,14 +267,17 @@ def test_photo_sans_csrf_refusee(client, db_session, mode_heberge):
 
 
 def test_page_des_fake_news_du_sujet(client, db_session, mode_heberge):
-    """Page séparée, du plus suspect au moins suspect ; un rattachement de
-    l'évaluateur est présenté comme « analyse automatique »."""
+    """Page séparée, du plus récent au plus ancien (pas par score) ; un
+    rattachement de l'évaluateur est présenté comme « analyse automatique »."""
     from fakenews.models import Score
 
     mode_heberge("secret")
     sujet = _sujet(db_session)
     peu, tres = _article(db_session, "peu"), _article(db_session, "tres")
     peu.titre, tres.titre = "Peu suspect", "Très suspect"
+    # Le moins suspect est le plus récent : il doit passer en premier.
+    peu.date_publication = datetime(2026, 10, 20, tzinfo=timezone.utc)
+    tres.date_publication = datetime(2026, 10, 1, tzinfo=timezone.utc)
     for article, valeur in ((peu, 10.0), (tres, 90.0)):
         db_session.execute(select(Score).where(Score.article_id == article.id)).scalar_one().score_final = valeur
         db_session.add(RattachementSujet(sujet_id=sujet.id, article_id=article.id, ajoute_par="evaluateur"))
@@ -280,6 +285,6 @@ def test_page_des_fake_news_du_sujet(client, db_session, mode_heberge):
     _connecter(client, db_session, "alice")
 
     page = client.get(f"/sujets/{sujet.id}/fake-news").text
-    assert page.index("Très suspect") < page.index("Peu suspect")
+    assert page.index("Peu suspect") < page.index("Très suspect")
     assert "analyse automatique" in page
     assert "Voir les 2 news évaluées liées à ce sujet" in client.get(f"/sujets/{sujet.id}").text
