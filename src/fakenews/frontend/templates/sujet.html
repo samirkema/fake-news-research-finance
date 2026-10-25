@@ -62,23 +62,11 @@
 </section>
 
 <section id="articles">
-  <h3>Articles liés</h3>
-  {% if articles %}
-  <table>
-    <thead><tr><th>Score</th><th>Titre</th><th>Domaine</th><th>Date</th></tr></thead>
-    <tbody>
-      {% for article, score in articles %}
-      <tr>
-        <td class="score">{% if score and score.score_final is not none %}{{ "%.1f"|format(score.score_final) }}{% else %}—{% endif %}</td>
-        <td><a href="/articles/{{ article.id }}">{{ article.titre }}</a></td>
-        <td>{{ article.domaine_source or "—" }}</td>
-        <td>{{ article.date_publication.strftime("%Y-%m-%d") }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <h3>Fake news liées</h3>
+  {% if nb_articles %}
+  <p><a href="/sujets/{{ sujet.id }}/fake-news">Voir les {{ nb_articles }} fake news liées à ce sujet →</a></p>
   {% else %}
-  <p>Aucun article rattaché pour l'instant.{% if peut_decider %} Depuis la fiche d'un article, utilisez « Rattacher à un sujet ».{% endif %}</p>
+  <p>Aucun article rattaché pour l'instant. L'analyse automatique en ajoutera au prochain passage du pipeline.{% if peut_decider %} Vous pouvez aussi, depuis la fiche d'un article, utiliser « Rattacher à un sujet ».{% endif %}</p>
   {% endif %}
 </section>
 

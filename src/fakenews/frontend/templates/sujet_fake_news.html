@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Fake news — {{ sujet.titre }} — fakenewstrackingbase{% endblock %}
+{% block content %}
+<p><a href="/sujets/{{ sujet.id }}">← Retour au sujet « {{ sujet.titre }} »</a></p>
+<h2>Fake news liées à « {{ sujet.titre }} »</h2>
+<p class="aide">Du plus suspect au moins suspect. Score de 0 (fiable) à 100 (très suspect).</p>
+
+{% if articles %}
+<table>
+  <thead><tr><th>Score</th><th>Titre</th><th>Source</th><th>Date</th><th>Rattaché par</th></tr></thead>
+  <tbody>
+    {% for article, score, ajoute_par in articles %}
+    <tr>
+      <td class="score">{% if score and score.score_final is not none %}{{ "%.1f"|format(score.score_final) }}{% else %}—{% endif %}</td>
+      <td><a href="/articles/{{ article.id }}">{{ article.titre }}</a></td>
+      <td>{{ article.domaine_source or "—" }}</td>
+      <td>{{ article.date_publication.strftime("%Y-%m-%d") }}</td>
+      <td>{% if ajoute_par == "evaluateur" %}analyse automatique{% else %}{{ ajoute_par }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Aucun article rattaché à ce sujet pour l'instant.</p>
+{% endif %}
+{% endblock %}

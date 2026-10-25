@@ -1753,13 +1753,11 @@ def detail_sujet(
     if sujet is None or (sujet.retire_le is not None and compte.role != "superadmin"):
         raise HTTPException(status_code=404, detail="Sujet introuvable")
 
-    articles = session.execute(
-        select(Article, Score)
-        .join(RattachementSujet, RattachementSujet.article_id == Article.id)
-        .outerjoin(Score, Score.article_id == Article.id)
-        .where(RattachementSujet.sujet_id == sujet_id)
-        .order_by(Article.date_publication.desc())
-    ).all()
+    # La liste elle-même vit sur sa propre page (`/sujets/{id}/fake-news`) : la
+    # page du sujet reste lisible, elle n'en affiche que le nombre.
+    nb_articles = session.execute(
+        select(func.count()).select_from(RattachementSujet).where(RattachementSujet.sujet_id == sujet_id)
+    ).scalar_one()
 
     messages = select(SujetMessage).where(SujetMessage.sujet_id == sujet_id)
     if compte.role != "superadmin":
@@ -1781,12 +1779,36 @@ def detail_sujet(
             sujet=sujet,
             images=images,
             legende_max=LEGENDE_LONGUEUR_MAX,
-            articles=articles,
+            nb_articles=nb_articles,
             analyses=[m for m in messages if m.genre == "analyse"],
             debat=[m for m in messages if m.genre == "debat"],
             longueur_max=COMMENTAIRE_LONGUEUR_MAX,
             erreur=_message(erreur),
         ),
+    )
+
+
+@app.get("/sujets/{sujet_id}/fake-news", response_class=HTMLResponse)
+def fake_news_du_sujet(
+    request: Request,
+    sujet_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    compte: CompteCourant = Depends(compte_courant),
+):
+    """Articles rattachés au sujet, à la main par un contributeur ou
+    automatiquement par l'évaluateur, du plus suspect au moins suspect."""
+    sujet = session.get(Sujet, sujet_id)
+    if sujet is None or (sujet.retire_le is not None and compte.role != "superadmin"):
+        raise HTTPException(status_code=404, detail="Sujet introuvable")
+    articles = session.execute(
+        select(Article, Score, RattachementSujet.ajoute_par)
+        .join(RattachementSujet, RattachementSujet.article_id == Article.id)
+        .outerjoin(Score, Score.article_id == Article.id)
+        .where(RattachementSujet.sujet_id == sujet_id)
+        .order_by(Score.score_final.desc().nulls_last(), Article.date_publication.desc())
+    ).all()
+    return templates.TemplateResponse(
+        request, "sujet_fake_news.html", _contexte(compte, sujet=sujet, articles=articles)
     )
 
 
