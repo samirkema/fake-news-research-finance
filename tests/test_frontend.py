@@ -450,7 +450,8 @@ def test_filtre_titre_score_max_et_tri(client, db_session):
     _inserer_article_avec_score(db_session, "zz-bas", 70.0)
     _inserer_article_avec_score(db_session, "zz-haut", 95.0)
     assert "Titre zz-haut" not in client.get("/?q=zz-bas&tri=score_asc").text
-    assert "Titre zz-bas" not in client.get("/?q=zz&score_max=80").text
+    borne = client.get("/?q=zz&score_max=80").text
+    assert "Titre zz-bas" in borne and "Titre zz-haut" not in borne
     texte = client.get("/?q=zz&tri=score_asc").text
     assert texte.index("Titre zz-bas") < texte.index("Titre zz-haut")
     # les jokers LIKE sont littéraux
