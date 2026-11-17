@@ -7,6 +7,11 @@ SUBREDDITS = [
     # -- Actualité générale --
     "worldnews",
     "news",
+    # -- Buzz / sujets viraux --
+    "nottheonion",
+    "OutOfTheLoop",
+    "interestingasfuck",
+    "technology",
     # -- Finance --
     "wallstreetbets",
     "stocks",
