@@ -61,6 +61,33 @@ RSS_SOURCES = [
         "domaine_source": "legorafi.fr",
         "url": "https://www.legorafi.fr/feed/",
     },
+    # -- Buzz / culture web : ce qui circule sur les réseaux (vérifiés HTTP 200, flux RSS/Atom) --
+    {
+        "nom": "Know Your Meme",
+        "domaine_source": "knowyourmeme.com",
+        "url": "https://knowyourmeme.com/newsfeed.rss",
+    },
+    {
+        "nom": "Mashable",
+        "domaine_source": "mashable.com",
+        "url": "https://mashable.com/feeds/rss/all",
+    },
+    {
+        "nom": "Dexerto",
+        "domaine_source": "dexerto.com",
+        "url": "https://www.dexerto.com/feed/",
+    },
+    {
+        "nom": "The Verge",
+        "domaine_source": "theverge.com",
+        "url": "https://www.theverge.com/rss/index.xml",
+    },
+    # -- Vérification des rumeurs virales --
+    {
+        "nom": "Snopes",
+        "domaine_source": "snopes.com",
+        "url": "https://www.snopes.com/feed/",
+    },
     # -- Réseaux sociaux : Mastodon, posts publics par hashtag --
     # Flux RSS publics, sans compte ni clé. Les posts n'ont pas de titre : il est
     # tiré du texte (cf. rss.titre_depuis_texte).
@@ -71,6 +98,6 @@ RSS_SOURCES = [
             "url": f"https://mastodon.social/tags/{tag}.rss",
             "plateforme": "mastodon",
         }
-        for tag in ("stocks", "investing", "crypto", "finance", "breakingnews", "news")
+        for tag in ("stocks", "investing", "crypto", "finance", "breakingnews", "news", "viral", "trending")
     ],
 ]
