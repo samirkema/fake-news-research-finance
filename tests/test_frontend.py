@@ -432,3 +432,35 @@ def test_date_min_exclut_le_jour_precedent(client, db_session):
 
     assert "Titre borne-basse" in client.get("/?date_min=2026-03-15").text
     assert "Titre borne-basse" not in client.get("/?date_min=2026-03-16").text
+
+
+def test_filtre_par_journal_multi_choix(client, db_session):
+    _inserer_article_avec_score(db_session, "j-a", 80.0, domaine="journal-a.invalid")
+    _inserer_article_avec_score(db_session, "j-b", 80.0, domaine="journal-b.invalid")
+    _inserer_article_avec_score(db_session, "j-c", 80.0, domaine="journal-c.invalid")
+    un = client.get("/?journal=journal-a.invalid").text
+    assert "Titre j-a" in un and "Titre j-b" not in un
+    deux = client.get("/?journal=journal-a.invalid&journal=journal-b.invalid").text
+    assert "Titre j-a" in deux and "Titre j-b" in deux and "Titre j-c" not in deux
+    # la liste déroulante expose tous les journaux disponibles
+    assert "journal-c.invalid" in un
+
+
+def test_filtre_titre_score_max_et_tri(client, db_session):
+    _inserer_article_avec_score(db_session, "zz-bas", 70.0)
+    _inserer_article_avec_score(db_session, "zz-haut", 95.0)
+    assert "Titre zz-haut" not in client.get("/?q=zz-bas&tri=score_asc").text
+    assert "Titre zz-bas" not in client.get("/?q=zz&score_max=80").text
+    texte = client.get("/?q=zz&tri=score_asc").text
+    assert texte.index("Titre zz-bas") < texte.index("Titre zz-haut")
+    # les jokers LIKE sont littéraux
+    assert "Titre zz-bas" not in client.get("/?q=%25").text
+
+
+def test_filtres_invalides_rejetes_et_pagination_conserve_filtres(client, db_session):
+    assert client.get("/?tri=nimporte").status_code == 422
+    assert client.get("/?taille=7").status_code == 422
+    for i in range(30):
+        _inserer_article_avec_score(db_session, f"pg-{i}", 80.0, domaine="pg.invalid")
+    page = client.get("/?journal=pg.invalid&taille=25").text
+    assert "journal=pg.invalid" in page and "taille=25" in page and "page=2" in page

@@ -5,6 +5,31 @@
   <label>Score minimum
     <input type="number" name="score_min" value="{{ score_min if score_min is not none else '' }}" min="0" max="100" step="1">
   </label>
+  <label>Score maximum
+    <input type="number" name="score_max" value="{{ score_max if score_max is not none else '' }}" min="0" max="100" step="1">
+  </label>
+  <label>Titre contient
+    <input type="search" name="q" value="{{ q }}" maxlength="200">
+  </label>
+  <label>Journal(aux)
+    <select name="journal" multiple size="5">
+      {% for j in journaux_disponibles %}
+      <option value="{{ j }}" {% if j in journaux %}selected{% endif %}>{{ j }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Trier par
+    <select name="tri">
+      {% for cle, nom in [("score_desc","Score décroissant"),("score_asc","Score croissant"),("date_desc","Plus récents"),("date_asc","Plus anciens"),("journal","Journal (A→Z)")] %}
+      <option value="{{ cle }}" {% if tri == cle %}selected{% endif %}>{{ nom }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Par page
+    <select name="taille">
+      {% for t in tailles %}<option value="{{ t }}" {% if taille == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+  </label>
   <label>Depuis le
     <input type="date" name="date_min" value="{{ date_min or '' }}">
   </label>
@@ -16,6 +41,7 @@
     Tous les articles (y compris fiables)
   </label>
   <button type="submit">Filtrer</button>
+  <a href="/">Réinitialiser</a>
 </form>
 
 {% if resultats %}
