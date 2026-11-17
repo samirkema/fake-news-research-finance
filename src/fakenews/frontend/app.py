@@ -793,20 +793,37 @@ def deconnexion(
     return reponse
 
 
-def _url_liste(score_min, date_min, date_max, tous, page) -> Optional[str]:
+TRIS_LISTE = {
+    "score_desc": (lambda: Score.score_final.desc()),
+    "score_asc": (lambda: Score.score_final.asc()),
+    "date_desc": (lambda: Article.date_publication.desc()),
+    "date_asc": (lambda: Article.date_publication.asc()),
+    "journal": (lambda: Article.domaine_source.asc()),
+}
+TAILLES_PAGE = (25, 50, 100)
+RECHERCHE_LONGUEUR_MAX = 200
+JOURNAUX_FILTRES_MAX = 50
+
+
+def _url_liste(filtres: dict, page: int) -> Optional[str]:
+    """URL de la liste conservant TOUS les filtres actifs (`filtres` : valeurs déjà
+    validées, `None`/vide = filtre absent)."""
     if page < 1:
         return None
-    params = {}
-    if score_min is not None:
-        params["score_min"] = score_min
-    if date_min:
-        params["date_min"] = date_min.isoformat()
-    if date_max:
-        params["date_max"] = date_max.isoformat()
-    if tous:
-        params["tous"] = "1"
+    params = []
+    for cle, valeur in filtres.items():
+        if valeur is None or valeur == "" or valeur is False:
+            continue
+        if isinstance(valeur, (list, tuple)):
+            params.extend((cle, v) for v in valeur)
+        elif isinstance(valeur, date):
+            params.append((cle, valeur.isoformat()))
+        elif valeur is True:
+            params.append((cle, "1"))
+        else:
+            params.append((cle, valeur))
     if page != 1:
-        params["page"] = page
+        params.append(("page", page))
     return f"/?{urlencode(params)}" if params else "/"
 
 
@@ -848,6 +865,11 @@ def liste_articles(
     score_min_brut: Optional[str] = Query(None, alias="score_min"),
     date_min_brut: Optional[str] = Query(None, alias="date_min"),
     date_max_brut: Optional[str] = Query(None, alias="date_max"),
+    score_max_brut: Optional[str] = Query(None, alias="score_max"),
+    journal: list[str] = Query(default_factory=list),
+    q: Optional[str] = Query(None),
+    tri: str = Query("score_desc"),
+    taille: int = Query(ARTICLES_PAR_PAGE),
     tous: bool = Query(False),
     page: int = Query(1, ge=1),
     session: Session = Depends(get_session),
@@ -864,11 +886,29 @@ def liste_articles(
     score_min = _parser_score_min(score_min_brut)
     date_min = _parser_date(date_min_brut, "date_min")
     date_max = _parser_date(date_max_brut, "date_max")
+    score_max = _parser_score_min(score_max_brut)
+    if tri not in TRIS_LISTE:
+        raise HTTPException(status_code=422, detail="tri invalide")
+    if taille not in TAILLES_PAGE:
+        raise HTTPException(status_code=422, detail="taille invalide")
+    journaux = sorted({j.strip() for j in journal if j.strip()})
+    if len(journaux) > JOURNAUX_FILTRES_MAX or any(len(j) > 255 for j in journaux):
+        raise HTTPException(status_code=422, detail="journal invalide")
+    recherche = (q or "").strip()
+    if len(recherche) > RECHERCHE_LONGUEUR_MAX:
+        raise HTTPException(status_code=422, detail="recherche trop longue")
     seuil_effectif = score_min if score_min is not None else (None if tous else SEUIL_LISTE)
 
     stmt = select(Article, Score).join(Score, Score.article_id == Article.id).where(Score.non_evaluable.is_(False))
     if seuil_effectif is not None:
         stmt = stmt.where(Score.score_final >= seuil_effectif)
+    if score_max is not None:
+        stmt = stmt.where(Score.score_final <= score_max)
+    if journaux:
+        stmt = stmt.where(Article.domaine_source.in_(journaux))
+    if recherche:
+        motif = recherche.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        stmt = stmt.where(Article.titre.ilike(f"%{motif}%", escape="\\"))
     if date_min:
         stmt = stmt.where(Article.date_publication >= _debut_de_journee(date_min))
     if date_max:
@@ -881,14 +921,30 @@ def liste_articles(
     # ce qui duplique les uns et masque les autres (cf. audit, finding M1). Les
     # scores sont des numeric(5,2) : les ex æquo sont la règle, pas l'exception.
     stmt = (
-        stmt.order_by(Score.score_final.desc(), Article.id)
-        .limit(ARTICLES_PAR_PAGE + 1)
-        .offset((page - 1) * ARTICLES_PAR_PAGE)
+        stmt.order_by(TRIS_LISTE[tri](), Article.id)
+        .limit(taille + 1)
+        .offset((page - 1) * taille)
+    )
+    journaux_disponibles = (
+        session.execute(
+            select(Article.domaine_source)
+            .join(Score, Score.article_id == Article.id)
+            .where(Score.non_evaluable.is_(False), Article.domaine_source.is_not(None))
+            .distinct()
+            .order_by(Article.domaine_source)
+        )
+        .scalars()
+        .all()
     )
 
     lignes = session.execute(stmt).all()
-    a_page_suivante = len(lignes) > ARTICLES_PAR_PAGE
-    resultats = lignes[:ARTICLES_PAR_PAGE]
+    a_page_suivante = len(lignes) > taille
+    resultats = lignes[:taille]
+    filtres = {
+        "score_min": score_min, "score_max": score_max, "date_min": date_min, "date_max": date_max,
+        "journal": journaux, "q": recherche, "tri": tri if tri != "score_desc" else None,
+        "taille": taille if taille != ARTICLES_PAR_PAGE else None, "tous": tous,
+    }
 
     return templates.TemplateResponse(
         request,
@@ -900,8 +956,15 @@ def liste_articles(
             date_min=date_min.isoformat() if date_min else None,
             date_max=date_max.isoformat() if date_max else None,
             tous=tous,
-            url_page_precedente=_url_liste(score_min, date_min, date_max, tous, page - 1) if page > 1 else None,
-            url_page_suivante=_url_liste(score_min, date_min, date_max, tous, page + 1) if a_page_suivante else None,
+            score_max=score_max,
+            journaux=journaux,
+            journaux_disponibles=journaux_disponibles,
+            q=recherche,
+            tri=tri,
+            taille=taille,
+            tailles=TAILLES_PAGE,
+            url_page_precedente=_url_liste(filtres, page - 1) if page > 1 else None,
+            url_page_suivante=_url_liste(filtres, page + 1) if a_page_suivante else None,
         ),
     )
 
